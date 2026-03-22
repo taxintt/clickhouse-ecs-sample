@@ -32,11 +32,6 @@ RESULT_DIR="${SCRIPT_DIR}/results"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 RESULT_FILE="${RESULT_DIR}/${TAG}_${TIMESTAMP}.tsv"
 
-CURL_OPTS=(-s --fail-with-body)
-if [[ -n "$CH_PASSWORD" ]]; then
-    CURL_OPTS+=(--user "default:${CH_PASSWORD}")
-fi
-
 CH_URL="http://${CH_HOST}:${CH_PORT}"
 
 run_query() {
@@ -46,7 +41,11 @@ run_query() {
     if [[ -n "$settings" ]]; then
         url="${url}&${settings}"
     fi
-    curl "${CURL_OPTS[@]}" "${url}" -d "$query"
+    local auth_opts=()
+    if [[ -n "$CH_PASSWORD" ]]; then
+        auth_opts=(--user "default:${CH_PASSWORD}")
+    fi
+    curl -s "${auth_opts[@]}" "${url}" -d "$query"
 }
 
 drop_caches() {
@@ -55,8 +54,11 @@ drop_caches() {
     run_query "SYSTEM DROP COMPILED EXPRESSION CACHE" || true
 }
 
-# Parse queries from SQL file
+# Parse queries from SQL file into parallel arrays
 # Queries are separated by comments starting with "-- qN.N"
+QUERY_IDS=()
+QUERY_SQLS=()
+
 parse_queries() {
     local file="$1"
     local current_id=""
@@ -65,7 +67,8 @@ parse_queries() {
     while IFS= read -r line; do
         if [[ "$line" =~ ^--\ (q[0-9]+\.[0-9]+) ]]; then
             if [[ -n "$current_id" && -n "$current_query" ]]; then
-                printf '%s\t%s\n' "$current_id" "$current_query"
+                QUERY_IDS+=("$current_id")
+                QUERY_SQLS+=("$current_query")
             fi
             current_id="${BASH_REMATCH[1]}"
             current_query=""
@@ -77,7 +80,8 @@ parse_queries() {
     done < "$file"
 
     if [[ -n "$current_id" && -n "$current_query" ]]; then
-        printf '%s\t%s\n' "$current_id" "$current_query"
+        QUERY_IDS+=("$current_id")
+        QUERY_SQLS+=("$current_query")
     fi
 }
 
@@ -88,13 +92,15 @@ echo "Output: ${RESULT_FILE}"
 echo ""
 
 # Header
-echo -e "query_id\trun_type\trun_num\telapsed_sec\trows_read\tbytes_read\tmemory_usage" > "$RESULT_FILE"
+printf 'query_id\trun_type\trun_num\telapsed_sec\trows_read\tbytes_read\tmemory_usage\n' > "$RESULT_FILE"
 
-parse_queries "${SCRIPT_DIR}/${QUERY_FILE}" | while IFS=$'\t' read -r query_id query; do
-    query=$(echo "$query" | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')
-    if [[ -z "$query" ]]; then
-        continue
-    fi
+parse_queries "${SCRIPT_DIR}/${QUERY_FILE}"
+echo "Loaded ${#QUERY_IDS[@]} queries"
+echo ""
+
+for idx in "${!QUERY_IDS[@]}"; do
+    query_id="${QUERY_IDS[$idx]}"
+    query="${QUERY_SQLS[$idx]}"
 
     echo "--- ${query_id} ---"
 
@@ -103,12 +109,12 @@ parse_queries "${SCRIPT_DIR}/${QUERY_FILE}" | while IFS=$'\t' read -r query_id q
         echo "  cold run ${i}..."
         drop_caches
 
-        run_id="${TAG}_${query_id}_cold_${i}_$(date +%s%N)"
+        run_id="${TAG}_${query_id}_cold_${i}_${RANDOM}"
         run_query "${query} FORMAT Null" \
-            "max_execution_time=600&log_queries=1&query_id=${run_id}" > /dev/null 2>&1
+            "max_execution_time=600&log_queries=1&query_id=${run_id}" > /dev/null || true
 
         # Flush query_log and get metrics
-        run_query "SYSTEM FLUSH LOGS" > /dev/null 2>&1
+        run_query "SYSTEM FLUSH LOGS" > /dev/null || true
         metrics=$(run_query "
             SELECT
                 round(query_duration_ms / 1000.0, 3) AS elapsed_sec,
@@ -120,10 +126,10 @@ parse_queries "${SCRIPT_DIR}/${QUERY_FILE}" | while IFS=$'\t' read -r query_id q
               AND query_id = '${run_id}'
             LIMIT 1
             FORMAT TabSeparated
-        ")
+        ") || true
 
         if [[ -n "$metrics" ]]; then
-            echo -e "${query_id}\tcold\t${i}\t${metrics}" >> "$RESULT_FILE"
+            printf '%s\tcold\t%s\t%s\n' "${query_id}" "${i}" "${metrics}" >> "$RESULT_FILE"
             echo "  ${metrics}"
         else
             echo "  WARNING: Could not retrieve metrics for cold run"
@@ -134,11 +140,11 @@ parse_queries "${SCRIPT_DIR}/${QUERY_FILE}" | while IFS=$'\t' read -r query_id q
     for i in $(seq 1 "$WARM_RUNS"); do
         echo "  warm run ${i}..."
 
-        run_id="${TAG}_${query_id}_warm_${i}_$(date +%s%N)"
+        run_id="${TAG}_${query_id}_warm_${i}_${RANDOM}"
         run_query "${query} FORMAT Null" \
-            "max_execution_time=600&log_queries=1&query_id=${run_id}" > /dev/null 2>&1
+            "max_execution_time=600&log_queries=1&query_id=${run_id}" > /dev/null || true
 
-        run_query "SYSTEM FLUSH LOGS" > /dev/null 2>&1
+        run_query "SYSTEM FLUSH LOGS" > /dev/null || true
         metrics=$(run_query "
             SELECT
                 round(query_duration_ms / 1000.0, 3) AS elapsed_sec,
@@ -150,10 +156,10 @@ parse_queries "${SCRIPT_DIR}/${QUERY_FILE}" | while IFS=$'\t' read -r query_id q
               AND query_id = '${run_id}'
             LIMIT 1
             FORMAT TabSeparated
-        ")
+        ") || true
 
         if [[ -n "$metrics" ]]; then
-            echo -e "${query_id}\twarm\t${i}\t${metrics}" >> "$RESULT_FILE"
+            printf '%s\twarm\t%s\t%s\n' "${query_id}" "${i}" "${metrics}" >> "$RESULT_FILE"
             echo "  ${metrics}"
         else
             echo "  WARNING: Could not retrieve metrics for warm run ${i}"
@@ -165,19 +171,3 @@ done
 
 echo "=== Benchmark Complete ==="
 echo "Results saved to: ${RESULT_FILE}"
-
-# Print summary (median of warm runs)
-echo ""
-echo "=== Summary (warm run median elapsed_sec) ==="
-run_query "
-    SELECT
-        query_id,
-        round(medianExact(elapsed_sec), 3) AS median_sec,
-        round(min(elapsed_sec), 3) AS min_sec,
-        round(max(elapsed_sec), 3) AS max_sec
-    FROM file('${RESULT_FILE}', 'TabSeparatedWithNames')
-    WHERE run_type = 'warm'
-    GROUP BY query_id
-    ORDER BY query_id
-    FORMAT PrettyCompact
-" 2>/dev/null || echo "(Summary requires clickhouse-local for file() function)"
