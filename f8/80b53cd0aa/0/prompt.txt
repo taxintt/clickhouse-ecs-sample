@@ -1,0 +1,210 @@
+benchmark $ ./run_benchmark.sh --host "$CH_HOST" --password "$CH_PASSWORD" --tag baseline
+=== MgBench SELECT Benchmark ===
+Host: clickhouse-shard1-replica1.logplatform.local:8123
+Tag: baseline
+Output: /home/cloudshell-user/clickhouse-ecs-sample/benchmark/results/baseline_20260322_112437.tsv
+
+Loaded 14 queries
+
+--- q1.1 ---
+  cold run 1...
+  WARNING: Could not retrieve metrics for cold run
+  warm run 1...
+  WARNING: Could not retrieve metrics for warm run 1
+  warm run 2...
+  WARNING: Could not retrieve metrics for warm run 2
+  warm run 3...
+  WARNING: Could not retrieve metrics for warm run 3
+
+--- q1.2 ---
+  cold run 1...
+  WARNING: Could not retrieve metrics for cold run
+  warm run 1...
+  WARNING: Could not retrieve metrics for warm run 1
+  warm run 2...
+  WARNING: Could not retrieve metrics for warm run 2
+  warm run 3...
+  WARNING: Could not retrieve metrics for warm run 3
+
+--- q1.3 ---
+  cold run 1...
+  WARNING: Could not retrieve metrics for cold run
+  warm run 1...
+  WARNING: Could not retrieve metrics for warm run 1
+  warm run 2...
+  WARNING: Could not retrieve metrics for warm run 2
+  warm run 3...
+  WARNING: Could not retrieve metrics for warm run 3
+
+--- q1.4 ---
+  cold run 1...
+  WARNING: Could not retrieve metrics for cold run
+  warm run 1...
+  WARNING: Could not retrieve metrics for warm run 1
+  warm run 2...
+  WARNING: Could not retrieve metrics for warm run 2
+  warm run 3...
+  WARNING: Could not retrieve metrics for warm run 3
+
+--- q1.5 ---
+  cold run 1...
+  WARNING: Could not retrieve metrics for cold run
+  warm run 1...
+  WARNING: Could not retrieve metrics for warm run 1
+  warm run 2...
+  WARNING: Could not retrieve metrics for warm run 2
+  warm run 3...
+  WARNING: Could not retrieve metrics for warm run 3
+
+--- q1.6 ---
+  cold run 1...
+  WARNING: Could not retrieve metrics for cold run
+  warm run 1...
+  WARNING: Could not retrieve metrics for warm run 1
+  warm run 2...
+  WARNING: Could not retrieve metrics for warm run 2
+  warm run 3...
+  WARNING: Could not retrieve metrics for warm run 3
+
+--- q2.1 ---
+  cold run 1...
+  WARNING: Could not retrieve metrics for cold run
+  warm run 1...
+  WARNING: Could not retrieve metrics for warm run 1
+  warm run 2...
+  WARNING: Could not retrieve metrics for warm run 2
+  warm run 3...
+  WARNING: Could not retrieve metrics for warm run 3
+
+--- q2.2 ---
+  cold run 1...
+  WARNING: Could not retrieve metrics for cold run
+  warm run 1...
+  WARNING: Could not retrieve metrics for warm run 1
+  warm run 2...
+  WARNING: Could not retrieve metrics for warm run 2
+  warm run 3...
+  WARNING: Could not retrieve metrics for warm run 3
+
+--- q2.3 ---
+  cold run 1...
+  WARNING: Could not retrieve metrics for cold run
+  warm run 1...
+  WARNING: Could not retrieve metrics for warm run 1
+  warm run 2...
+  WARNING: Could not retrieve metrics for warm run 2
+  warm run 3...
+  WARNING: Could not retrieve metrics for warm run 3
+
+--- q2.4 ---
+  cold run 1...
+  WARNING: Could not retrieve metrics for cold run
+  warm run 1...
+  WARNING: Could not retrieve metrics for warm run 1
+  warm run 2...
+  WARNING: Could not retrieve metrics for warm run 2
+  warm run 3...
+  WARNING: Could not retrieve metrics for warm run 3
+
+--- q2.5 ---
+  cold run 1...
+  WARNING: Could not retrieve metrics for cold run
+  warm run 1...
+  WARNING: Could not retrieve metrics for warm run 1
+  warm run 2...
+  WARNING: Could not retrieve metrics for warm run 2
+  warm run 3...
+  WARNING: Could not retrieve metrics for warm run 3
+
+--- q2.6 ---
+  cold run 1...
+  WARNING: Could not retrieve metrics for cold run
+  warm run 1...
+  WARNING: Could not retrieve metrics for warm run 1
+  warm run 2...
+  WARNING: Could not retrieve metrics for warm run 2
+  warm run 3...
+  WARNING: Could not retrieve metrics for warm run 3
+
+--- q3.1 ---
+  cold run 1...
+  WARNING: Could not retrieve metrics for cold run
+  warm run 1...
+  WARNING: Could not retrieve metrics for warm run 1
+  warm run 2...
+  WARNING: Could not retrieve metrics for warm run 2
+  warm run 3...
+  WARNING: Could not retrieve metrics for warm run 3
+
+--- q3.4 ---
+  cold run 1...
+  WARNING: Could not retrieve metrics for cold run
+  warm run 1...
+  WARNING: Could not retrieve metrics for warm run 1
+  warm run 2...
+  WARNING: Could not retrieve metrics for warm run 2
+  warm run 3...
+  WARNING: Could not retrieve metrics for warm run 3
+
+=== Benchmark Complete ===
+Results saved to: /home/cloudshell-user/clickhouse-ecs-sample/benchmark/results/baseline_20260322_112437.tsv
+
+---
+
+benchmark $ curl -s "http://${CH_HOST}:8123/?database=mgbench&query_id=debug_test_1" \
+>     --user "default:${CH_PASSWORD}" \
+>     -d "SELECT machine_name, MIN(COALESCE(cpu_user, 0.0)) AS cpu_min FROM mgbench.logs1 WHERE machine_name IN ('anansi','aragog','urd') AND log_time >= TIMESTAMP '2017-01-11 00:00:00' GROUP BY machine_name FORMAT
+>   Null"
+benchmark $ curl -s "http://${CH_HOST}:8123/?database=mgbench" \
+>     --user "default:${CH_PASSWORD}" \
+>     -d "SYSTEM FLUSH LOGS"
+benchmark $ curl -s "http://${CH_HOST}:8123/?database=mgbench" \
+>     --user "default:${CH_PASSWORD}" \
+>     -d "SELECT query_id, type, query_duration_ms, read_rows FROM system.query_log WHERE query_id = 'debug_test_1' FORMAT PrettyCompact"
+   ┌─query_id─────┬─type────────┬─query_duration_ms─┬─read_rows─┐
+1. │ debug_test_1 │ QueryStart  │                 0 │         0 │
+2. │ debug_test_1 │ QueryFinish │                17 │    221184 │
+   └──────────────┴─────────────┴───────────────────┴───────────┘
+benchmark $
+
+---
+
+benchmark $ curl -s "http://${CH_HOST}:8123/?database=mgbench&query_id=debug_script_1&max_execution_time=600&log_queries=1" \
+>     --user "default:${CH_PASSWORD}" \
+>     -d " SELECT machine_name,        MIN(cpu) AS cpu_min,        MAX(cpu) AS cpu_max,        AVG(cpu) AS cpu_avg,        MIN(net_in) AS net_in_min,        MAX(net_in) AS net_in_max,        AVG(net_in) AS net_in_avg,
+>          MIN(net_out) AS net_out_min,        MAX(net_out) AS net_out_max,        AVG(net_out) AS net_out_avg FROM (   SELECT machine_name,          COALESCE(cpu_user, 0.0) AS cpu,          COALESCE(bytes_in, 0.0) AS
+>   net_in,          COALESCE(bytes_out, 0.0) AS net_out   FROM mgbench.logs1   WHERE machine_name IN ('anansi','aragog','urd')     AND log_time >= TIMESTAMP '2017-01-11 00:00:00' ) AS r GROUP BY machine_name FORMAT
+>   Null"
+benchmark $
+
+---
+
+benchmark $ run_id="test_$$"
+benchmark $ curl -s "http://${CH_HOST}:8123/?database=mgbench&query_id=${run_id}&log_queries=1" \
+>     --user "default:${CH_PASSWORD}" \
+>     -d "SELECT count() FROM logs1 FORMAT Null"
+benchmark $   echo "step1 exit: $?"
+step1 exit: 0
+benchmark $ curl -s "http://${CH_HOST}:8123/?database=mgbench" \
+>     --user "default:${CH_PASSWORD}" \
+>     -d "SYSTEM FLUSH LOGS"
+benchmark $   echo "step2 exit: $?"
+step2 exit: 0
+benchmark $ result=$(curl -s "http://${CH_HOST}:8123/?database=mgbench" \
+>     --user "default:${CH_PASSWORD}" \
+>     -d "
+>       SELECT
+>           round(query_duration_ms / 1000.0, 3) AS elapsed_sec,
+>           read_rows,
+>           read_bytes,
+>           memory_usage
+>       FROM system.query_log
+>       WHERE type = 'QueryFinish'
+>         AND query_id = '${run_id}'
+>       LIMIT 1
+>       FORMAT TabSeparated
+>   ")
+benchmark $   echo "step3 exit: $?"
+step3 exit: 0
+benchmark $   echo "result='${result}'"
+result='0.009   2       32      358593'
