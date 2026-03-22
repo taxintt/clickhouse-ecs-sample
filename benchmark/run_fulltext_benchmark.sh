@@ -115,9 +115,11 @@ parse_queries "$QUERY_FILE" | while IFS='|||' read -r query_id query_template; d
             echo "    cold run ${i}..."
             drop_caches
 
-            run_query "${query} FORMAT Null" "max_execution_time=600&log_queries=1" > /dev/null 2>&1
+            run_id="ft_${query_id}_${index_type}_cold_${i}_$(date +%s%N)"
+            run_query "${query} FORMAT Null" \
+                "max_execution_time=600&log_queries=1&query_id=${run_id}" > /dev/null 2>&1
 
-            sleep 1
+            run_query "SYSTEM FLUSH LOGS" > /dev/null 2>&1
             metrics=$(run_query "
                 SELECT
                     round(query_duration_ms / 1000.0, 3) AS elapsed_sec,
@@ -126,16 +128,14 @@ parse_queries "$QUERY_FILE" | while IFS='|||' read -r query_id query_template; d
                     memory_usage
                 FROM system.query_log
                 WHERE type = 'QueryFinish'
-                  AND query LIKE '%${table_name}%'
-                  AND query LIKE '%${query_id}%'
-                  AND query NOT LIKE '%system.query_log%'
-                ORDER BY event_time DESC
+                  AND query_id = '${run_id}'
                 LIMIT 1
                 FORMAT TabSeparated
             ")
 
             if [[ -n "$metrics" ]]; then
                 echo -e "${query_id}\t${index_type}\tcold\t${i}\t${metrics}" >> "$RESULT_FILE"
+                echo "    ${metrics}"
             fi
         done
 
@@ -143,9 +143,11 @@ parse_queries "$QUERY_FILE" | while IFS='|||' read -r query_id query_template; d
         for i in $(seq 1 "$WARM_RUNS"); do
             echo "    warm run ${i}..."
 
-            run_query "${query} FORMAT Null" "max_execution_time=600&log_queries=1" > /dev/null 2>&1
+            run_id="ft_${query_id}_${index_type}_warm_${i}_$(date +%s%N)"
+            run_query "${query} FORMAT Null" \
+                "max_execution_time=600&log_queries=1&query_id=${run_id}" > /dev/null 2>&1
 
-            sleep 1
+            run_query "SYSTEM FLUSH LOGS" > /dev/null 2>&1
             metrics=$(run_query "
                 SELECT
                     round(query_duration_ms / 1000.0, 3) AS elapsed_sec,
@@ -154,16 +156,14 @@ parse_queries "$QUERY_FILE" | while IFS='|||' read -r query_id query_template; d
                     memory_usage
                 FROM system.query_log
                 WHERE type = 'QueryFinish'
-                  AND query LIKE '%${table_name}%'
-                  AND query LIKE '%${query_id}%'
-                  AND query NOT LIKE '%system.query_log%'
-                ORDER BY event_time DESC
+                  AND query_id = '${run_id}'
                 LIMIT 1
                 FORMAT TabSeparated
             ")
 
             if [[ -n "$metrics" ]]; then
                 echo -e "${query_id}\t${index_type}\twarm\t${i}\t${metrics}" >> "$RESULT_FILE"
+                echo "    ${metrics}"
             fi
         done
     done

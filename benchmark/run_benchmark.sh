@@ -103,12 +103,12 @@ parse_queries "${SCRIPT_DIR}/${QUERY_FILE}" | while IFS='|||' read -r query_id q
         echo "  cold run ${i}..."
         drop_caches
 
-        query_with_id="${query}"
-        elapsed=$(run_query "${query_with_id} FORMAT Null" \
-            "max_execution_time=600&log_queries=1" 2>&1 | tail -1)
+        run_id="${TAG}_${query_id}_cold_${i}_$(date +%s%N)"
+        run_query "${query} FORMAT Null" \
+            "max_execution_time=600&log_queries=1&query_id=${run_id}" > /dev/null 2>&1
 
-        # Get metrics from query_log
-        sleep 1
+        # Flush query_log and get metrics
+        run_query "SYSTEM FLUSH LOGS" > /dev/null 2>&1
         metrics=$(run_query "
             SELECT
                 round(query_duration_ms / 1000.0, 3) AS elapsed_sec,
@@ -117,15 +117,14 @@ parse_queries "${SCRIPT_DIR}/${QUERY_FILE}" | while IFS='|||' read -r query_id q
                 memory_usage
             FROM system.query_log
             WHERE type = 'QueryFinish'
-              AND query LIKE '%${query_id}%'
-              AND query NOT LIKE '%system.query_log%'
-            ORDER BY event_time DESC
+              AND query_id = '${run_id}'
             LIMIT 1
             FORMAT TabSeparated
         ")
 
         if [[ -n "$metrics" ]]; then
             echo -e "${query_id}\tcold\t${i}\t${metrics}" >> "$RESULT_FILE"
+            echo "  ${metrics}"
         else
             echo "  WARNING: Could not retrieve metrics for cold run"
         fi
@@ -135,9 +134,11 @@ parse_queries "${SCRIPT_DIR}/${QUERY_FILE}" | while IFS='|||' read -r query_id q
     for i in $(seq 1 "$WARM_RUNS"); do
         echo "  warm run ${i}..."
 
-        run_query "${query} FORMAT Null" "max_execution_time=600&log_queries=1" > /dev/null 2>&1
+        run_id="${TAG}_${query_id}_warm_${i}_$(date +%s%N)"
+        run_query "${query} FORMAT Null" \
+            "max_execution_time=600&log_queries=1&query_id=${run_id}" > /dev/null 2>&1
 
-        sleep 1
+        run_query "SYSTEM FLUSH LOGS" > /dev/null 2>&1
         metrics=$(run_query "
             SELECT
                 round(query_duration_ms / 1000.0, 3) AS elapsed_sec,
@@ -146,15 +147,14 @@ parse_queries "${SCRIPT_DIR}/${QUERY_FILE}" | while IFS='|||' read -r query_id q
                 memory_usage
             FROM system.query_log
             WHERE type = 'QueryFinish'
-              AND query LIKE '%${query_id}%'
-              AND query NOT LIKE '%system.query_log%'
-            ORDER BY event_time DESC
+              AND query_id = '${run_id}'
             LIMIT 1
             FORMAT TabSeparated
         ")
 
         if [[ -n "$metrics" ]]; then
             echo -e "${query_id}\twarm\t${i}\t${metrics}" >> "$RESULT_FILE"
+            echo "  ${metrics}"
         else
             echo "  WARNING: Could not retrieve metrics for warm run ${i}"
         fi
