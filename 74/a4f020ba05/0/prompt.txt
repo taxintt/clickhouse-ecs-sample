@@ -1,0 +1,66 @@
+benchmark $ ./run_benchmark.sh --host "$CH_HOST" --password "$CH_PASSWORD" --tag baseline
+=== MgBench SELECT Benchmark ===
+Host: clickhouse-shard1-replica1.logplatform.local:8123
+Tag: baseline
+Output: /home/cloudshell-user/clickhouse-ecs-sample/benchmark/results/baseline_20260322_112218.tsv
+
+--- q1.1 ---
+  cold run 1...
+benchmark $ cat results/baseline_20260322_112218.tsv
+query_id        run_type        run_num elapsed_sec     rows_read       bytes_read      memory_usage
+benchmark $
+
+---
+
+benchmark $ bash -x ./run_benchmark.sh --host "$CH_HOST" --password "$CH_PASSWORD" --tag baseline 2>&1 | head -50
++ set -euo pipefail
++ CH_HOST=localhost
++ CH_PORT=8123
++ CH_PASSWORD=
++ TAG=baseline
++ COLD_RUNS=1
++ WARM_RUNS=3
++ QUERY_FILE=queries/mgbench_baseline.sql
++ [[ 6 -gt 0 ]]
++ case $1 in
++ CH_HOST=clickhouse-shard1-replica1.logplatform.local
++ shift 2
++ [[ 4 -gt 0 ]]
++ case $1 in
++ CH_PASSWORD='kA8@*KZLJDqHc2mlT51o'
++ shift 2
++ [[ 2 -gt 0 ]]
++ case $1 in
++ TAG=baseline
++ shift 2
++ [[ 0 -gt 0 ]]
++++ dirname ./run_benchmark.sh
+++ cd .
+++ pwd
++ SCRIPT_DIR=/home/cloudshell-user/clickhouse-ecs-sample/benchmark
++ RESULT_DIR=/home/cloudshell-user/clickhouse-ecs-sample/benchmark/results
+++ date +%Y%m%d_%H%M%S
++ TIMESTAMP=20260322_112305
++ RESULT_FILE=/home/cloudshell-user/clickhouse-ecs-sample/benchmark/results/baseline_20260322_112305.tsv
++ CURL_OPTS=(-s --fail-with-body)
++ [[ -n kA8@*KZLJDqHc2mlT51o ]]
++ CURL_OPTS+=(--user "default:${CH_PASSWORD}")
++ CH_URL=http://clickhouse-shard1-replica1.logplatform.local:8123
++ echo '=== MgBench SELECT Benchmark ==='
+=== MgBench SELECT Benchmark ===
++ echo 'Host: clickhouse-shard1-replica1.logplatform.local:8123'
+Host: clickhouse-shard1-replica1.logplatform.local:8123
++ echo 'Tag: baseline'
+Tag: baseline
++ echo 'Output: /home/cloudshell-user/clickhouse-ecs-sample/benchmark/results/baseline_20260322_112305.tsv'
+Output: /home/cloudshell-user/clickhouse-ecs-sample/benchmark/results/baseline_20260322_112305.tsv
++ echo ''
+
++ echo -e 'query_id\trun_type\trun_num\telapsed_sec\trows_read\tbytes_read\tmemory_usage'
++ IFS=' '
++ read -r query_id query
++ parse_queries /home/cloudshell-user/clickhouse-ecs-sample/benchmark/queries/mgbench_baseline.sql
++ local file=/home/cloudshell-user/clickhouse-ecs-sample/benchmark/queries/mgbench_baseline.sql
++ local current_id=
++ local current_query=
+benchmark $
