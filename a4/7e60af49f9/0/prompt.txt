@@ -1,0 +1,88 @@
+benchmark $ git pull
+remote: Enumerating objects: 31, done.
+remote: Counting objects: 100% (31/31), done.
+remote: Compressing objects: 100% (14/14), done.
+remote: Total 22 (delta 6), reused 22 (delta 6), pack-reused 0 (from 0)
+Unpacking objects: 100% (22/22), 36.62 KiB | 1013.00 KiB/s, done.
+From https://github.com/taxintt/clickhouse-ecs-sample
+   01bc8e1..c3286d1  feature/add-mgbench-benchmark -> origin/feature/add-mgbench-benchmark
+   14e0bc2..af7abe0  entire/checkpoints/v1         -> origin/entire/checkpoints/v1
+Updating 01bc8e1..c3286d1
+Fast-forward
+ benchmark/run_benchmark.sh          | 26 +++++++++++++-------------
+ benchmark/run_fulltext_benchmark.sh | 24 ++++++++++++------------
+ 2 files changed, 25 insertions(+), 25 deletions(-)
+benchmark $ ./run_benchmark.sh --host "$CH_HOST" --password "$CH_PASSWORD" --tag baseline
+=== MgBench SELECT Benchmark ===
+Host: clickhouse-shard1-replica1.logplatform.local:8123
+Tag: baseline
+Output: /home/cloudshell-user/clickhouse-ecs-sample/benchmark/results/baseline_20260322_111725.tsv
+
+--- q1.1 ---
+  cold run 1...
+benchmark $ cat results/baseline_20260322_111
+baseline_20260322_111529.tsv  baseline_20260322_111725.tsv  
+benchmark $ cat results/baseline_20260322_111725.tsv 
+query_id        run_type        run_num elapsed_sec     rows_read       bytes_read      memory_usage
+benchmark $
+
+---
+
+benchmark $ curl -s "http://${CH_HOST}:8123" \
+>     --user "default:${CH_PASSWORD}" \
+>     -d "SELECT count() FROM mgbench.logs1_local"
+22023859
+benchmark $ curl -s "http://${CH_HOST}:8123/?database=mgbench&query_id=test123" \
+>     --user "default:${CH_PASSWORD}" \
+>     -d "SELECT machine_name, MIN(COALESCE(cpu_user, 0.0)) AS cpu_min FROM mgbench.logs1 WHERE machine_name IN ('anansi','aragog','urd') AND log_time >= TIMESTAMP '2017-01-11 00:00:00' GROUP BY machine_name FORMAT
+>   Null"
+benchmark $
+
+---
+
+benchmark $ curl -s "http://${CH_HOST}:8123" \
+>     --user "default:${CH_PASSWORD}" \
+>     -d "SELECT count() FROM mgbench.logs1_local"
+22023859
+benchmark $ curl -s "http://${CH_HOST}:8123/?database=mgbench&query_id=test123" \
+>     --user "default:${CH_PASSWORD}" \
+>     -d "SELECT machine_name, MIN(COALESCE(cpu_user, 0.0)) AS cpu_min FROM mgbench.logs1 WHERE machine_name IN ('anansi','aragog','urd') AND log_time >= TIMESTAMP '2017-01-11 00:00:00' GROUP BY machine_name FORMAT
+>   Null"
+benchmark $ curl -s "http://${CH_HOST}:8123" \
+>     --user "default:${CH_PASSWORD}" \
+>     -d "SYSTEM FLUSH LOGS"
+benchmark $ curl -s "http://${CH_HOST}:8123" \
+>     --user "default:${CH_PASSWORD}" \
+>     -d "SELECT query_id, type, query_duration_ms, read_rows FROM system.query_log WHERE query_id = 'test123' FORMAT PrettyCompact"
+   ┌─query_id─┬─type────────┬─query_duration_ms─┬─read_rows─┐
+1. │ test123  │ QueryStart  │                 0 │         0 │
+2. │ test123  │ QueryFinish │               385 │    221184 │
+   └──────────┴─────────────┴───────────────────┴───────────┘
+benchmark $
+
+---
+
+benchmark $ curl -s --fail-with-body "http://${CH_HOST}:8123/?database=mgbench&max_execution_time=600&log_queries=1&query_id=test456" \
+>     --user "default:${CH_PASSWORD}" \
+>     -d "SELECT machine_name, MIN(COALESCE(cpu_user, 0.0)) AS cpu_min FROM mgbench.logs1 WHERE machine_name IN ('anansi','aragog','urd') AND log_time >= TIMESTAMP '2017-01-11 00:00:00' GROUP BY machine_name FORMAT
+>   Null"
+benchmark $   echo "exit code: $?"
+exit code: 0
+
+---
+
+benchmark $ curl -s --fail-with-body "http://${CH_HOST}:8123/?database=mgbench" \
+>     --user "default:${CH_PASSWORD}" \
+>     -d "SYSTEM DROP MARK CACHE"
+benchmark $   echo "MARK: $?"
+MARK: 0
+benchmark $ curl -s --fail-with-body "http://${CH_HOST}:8123/?database=mgbench" \
+>     --user "default:${CH_PASSWORD}" \
+>     -d "SYSTEM DROP UNCOMPRESSED CACHE"
+benchmark $   echo "UNCOMPRESSED: $?"
+UNCOMPRESSED: 0
+benchmark $ curl -s --fail-with-body "http://${CH_HOST}:8123/?database=mgbench" \
+>     --user "default:${CH_PASSWORD}" \
+>     -d "SYSTEM DROP COMPILED EXPRESSION CACHE"
+benchmark $   echo "COMPILED: $?"
+COMPILED: 0
