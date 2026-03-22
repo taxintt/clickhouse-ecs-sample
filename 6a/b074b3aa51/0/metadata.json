@@ -1,0 +1,37 @@
+{
+  "cli_version": "0.5.0",
+  "checkpoint_id": "6ab074b3aa51",
+  "session_id": "d8fe71a1-90fd-4afc-a19d-5f4d20a49e4e",
+  "strategy": "manual-commit",
+  "created_at": "2026-03-22T11:16:56.646568Z",
+  "branch": "feature/add-mgbench-benchmark",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "benchmark/run_benchmark.sh",
+    "benchmark/run_fulltext_benchmark.sh"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-6[1m]",
+  "turn_id": "34e763ec3efd",
+  "checkpoint_transcript_start": 359,
+  "transcript_lines_at_start": 359,
+  "token_usage": {
+    "input_tokens": 38,
+    "cache_creation_tokens": 20682,
+    "cache_read_tokens": 2068669,
+    "output_tokens": 8005,
+    "api_call_count": 22
+  },
+  "session_metrics": {
+    "turn_count": 18
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-03-22T11:16:56.321838Z",
+    "agent_lines": 25,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 25,
+    "agent_percentage": 100
+  }
+}

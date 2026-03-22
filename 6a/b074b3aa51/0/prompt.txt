@@ -1,0 +1,149 @@
+clickhouse-ecs-sample $ curl -sf "http://${CH_HOST}:8123" --user "default:${CH_PASSWORD}" \
+>     -d "$(cat benchmark/schema/mgbench_tables.sql)"
+実行しましたが、何も出力されません
+
+---
+
+clickhouse-ecs-sample $ curl -sf "http://${CH_HOST}:8123" --user "default:${CH_PASSWORD}" \
+>     -d "$(cat benchmark/schema/mgbench_tables.sql)"
+clickhouse-ecs-sample $ curl -sf "http://${CH_HOST}:8123/?allow_multistatements=1" \
+>     --user "default:${CH_PASSWORD}" \
+>     --data-binary @benchmark/schema/mgbench_tables.sql
+clickhouse-ecs-sample $
+
+---
+
+clickhouse-ecs-sample $ curl -sf "http://${CH_HOST}:8123" \
+>     --user "default:${CH_PASSWORD}" \
+>     -d "SHOW TABLES FROM mgbench FORMAT PrettyCompact"
+clickhouse-ecs-sample $
+
+---
+
+clickhouse-ecs-sample $ curl -s "http://${CH_HOST}:8123/?allow_multistatements=1" \
+>     --user "default:${CH_PASSWORD}" \
+>     --data-binary @benchmark/schema/mgbench_tables.sql
+Code: 115. DB::Exception: Setting allow_multistatements is neither a builtin setting nor started with the prefix 'SQL_' registered for user-defined settings. (UNKNOWN_SETTING) (version 24.12.6.70 (official build))
+clickhouse-ecs-sample $
+
+---
+
+clickhouse-ecs-sample $ curl -s "http://${CH_HOST}:8123/?multiquery=1" \
+>     --user "default:${CH_PASSWORD}" \
+>     --data-binary @benchmark/schema/mgbench_tables.sql
+Code: 115. DB::Exception: Setting multiquery is neither a builtin setting nor started with the prefix 'SQL_' registered for user-defined settings. (UNKNOWN_SETTING) (version 24.12.6.70 (official build))
+
+---
+
+clickhouse-ecs-sample $ curl -s "http://${CH_HOST}:8123/?multiquery=1" \
+>     --user "default:${CH_PASSWORD}" \
+>     --data-binary @benchmark/schema/mgbench_tables.sql
+Code: 115. DB::Exception: Setting multiquery is neither a builtin setting nor started with the prefix 'SQL_' registered for user-defined settings. (UNKNOWN_SETTING) (version 24.12.6.70 (official build))
+clickhouse-ecs-sample $ grep -v '^--' benchmark/schema/mgbench_tables.sql | grep -v '^$' | \
+>     tr '\n' ' ' | sed 's/;/;\n/g' | while IFS= read -r stmt; do
+>       stmt=$(echo "$stmt" | xargs)
+>       if [ -n "$stmt" ]; then
+>         echo ">>> ${stmt:0:70}..."
+>         result=$(curl -s "http://${CH_HOST}:8123" \
+>           --user "default:${CH_PASSWORD}" \
+>           -d "${stmt}")
+>         [ -n "$result" ] && echo "    ${result}"
+>       fi
+>     done
+>>> CREATE DATABASE IF NOT EXISTS mgbench ON CLUSTER logs_cluster;...
+    clickhouse-shard2-replica1.logplatform.local        9000    0               3       0
+clickhouse-shard1-replica1.logplatform.local    9000    0               2       0
+clickhouse-shard1-replica2.logplatform.local    9000    0               1       0
+clickhouse-shard2-replica2.logplatform.local    9000    0               0       0
+>>> CREATE TABLE IF NOT EXISTS mgbench.logs1_local ON CLUSTER logs_cluster...
+    Code: 62. DB::Exception: Syntax error: failed at position 726 ('/'): /clickhouse/tables/{shard}/mgbench_logs1_local, {replica} ) PARTITION BY toYYYYMM(log_time) ORDER BY (machine_group, machine_name, log_time) SETTINGS storage_po. Expected one of: ALL, DISTINCT, token, Comma, ClosingRoundBracket, CAST operator, NOT, INTERVAL, CASE, DATE, TIMESTAMP, tuple, collection of literals, array, number, literal, NULL, NULL, Bool, TRUE, FALSE, string literal, asterisk, qualified asterisk, compound identifier, identifier, COLUMNS matcher, COLUMNS, qualified COLUMNS matcher, function name, substitution, MySQL-style global variable, end of query. (SYNTAX_ERROR) (version 24.12.6.70 (official build))
+>>> CREATE TABLE IF NOT EXISTS mgbench.logs1 ON CLUSTER logs_cluster ( log...
+    clickhouse-shard1-replica2.logplatform.local        9000    0               3       0
+clickhouse-shard1-replica1.logplatform.local    9000    0               2       0
+clickhouse-shard2-replica1.logplatform.local    9000    0               1       0
+clickhouse-shard2-replica2.logplatform.local    9000    0               0       0
+>>> CREATE TABLE IF NOT EXISTS mgbench.logs2_local ON CLUSTER logs_cluster...
+    Code: 62. DB::Exception: Syntax error: failed at position 196 ('/'): /clickhouse/tables/{shard}/mgbench_logs2_local, {replica} ) PARTITION BY toYYYYMM(log_time) ORDER BY (status_code, log_time) SETTINGS storage_policy = s3_policy. Expected one of: ALL, DISTINCT, token, Comma, ClosingRoundBracket, CAST operator, NOT, INTERVAL, CASE, DATE, TIMESTAMP, tuple, collection of literals, array, number, literal, NULL, NULL, Bool, TRUE, FALSE, string literal, asterisk, qualified asterisk, compound identifier, identifier, COLUMNS matcher, COLUMNS, qualified COLUMNS matcher, function name, substitution, MySQL-style global variable, end of query. (SYNTAX_ERROR) (version 24.12.6.70 (official build))
+>>> CREATE TABLE IF NOT EXISTS mgbench.logs2 ON CLUSTER logs_cluster ( log...
+    clickhouse-shard2-replica1.logplatform.local        9000    0               3       0
+clickhouse-shard1-replica1.logplatform.local    9000    0               2       0
+clickhouse-shard1-replica2.logplatform.local    9000    0               1       0
+clickhouse-shard2-replica2.logplatform.local    9000    0               0       0
+>>> CREATE TABLE IF NOT EXISTS mgbench.logs3_local ON CLUSTER logs_cluster...
+    Code: 62. DB::Exception: Syntax error: failed at position 338 ('/'): /clickhouse/tables/{shard}/mgbench_logs3_local, {replica} ) PARTITION BY toYYYYMM(log_time) ORDER BY (event_type, log_time) SETTINGS storage_policy = s3_policy,. Expected one of: ALL, DISTINCT, token, Comma, ClosingRoundBracket, CAST operator, NOT, INTERVAL, CASE, DATE, TIMESTAMP, tuple, collection of literals, array, number, literal, NULL, NULL, Bool, TRUE, FALSE, string literal, asterisk, qualified asterisk, compound identifier, identifier, COLUMNS matcher, COLUMNS, qualified COLUMNS matcher, function name, substitution, MySQL-style global variable, end of query. (SYNTAX_ERROR) (version 24.12.6.70 (official build))
+>>> CREATE TABLE IF NOT EXISTS mgbench.logs3 ON CLUSTER logs_cluster ( log...
+    clickhouse-shard2-replica1.logplatform.local        9000    0               3       0
+clickhouse-shard1-replica1.logplatform.local    9000    0               2       0
+clickhouse-shard1-replica2.logplatform.local    9000    0               1       0
+clickhouse-shard2-replica2.logplatform.local    9000    0               0       0
+
+---
+
+clickhouse-ecs-sample $ grep -v '^--' benchmark/schema/mgbench_tables.sql | grep -v '^$' | \
+>     tr '\n' ' ' | sed 's/;/;\n/g' | while IFS= read -r stmt; do
+>       stmt=$(echo "$stmt" | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')
+>       if [ -n "$stmt" ]; then
+>         echo ">>> ${stmt:0:70}..."
+>         result=$(curl -s "http://${CH_HOST}:8123" \
+>           --user "default:${CH_PASSWORD}" \
+>           -d "${stmt}")
+>         [ -n "$result" ] && echo "    ${result}"
+>       fi
+>     done
+>>> CREATE DATABASE IF NOT EXISTS mgbench ON CLUSTER 'logs_cluster';...
+    clickhouse-shard2-replica1.logplatform.local        9000    0               3       0
+clickhouse-shard1-replica1.logplatform.local    9000    0               2       0
+clickhouse-shard1-replica2.logplatform.local    9000    0               1       0
+clickhouse-shard2-replica2.logplatform.local    9000    0               0       0
+>>> CREATE TABLE IF NOT EXISTS mgbench.logs1_local ON CLUSTER 'logs_cluste...
+    clickhouse-shard1-replica1.logplatform.local        9000    0               3       0
+clickhouse-shard1-replica2.logplatform.local    9000    0               2       0
+clickhouse-shard2-replica1.logplatform.local    9000    0               1       0
+clickhouse-shard2-replica2.logplatform.local    9000    0               0       0
+>>> CREATE TABLE IF NOT EXISTS mgbench.logs1 ON CLUSTER 'logs_cluster' (  ...
+    clickhouse-shard2-replica1.logplatform.local        9000    0               3       0
+clickhouse-shard1-replica1.logplatform.local    9000    0               2       0
+clickhouse-shard1-replica2.logplatform.local    9000    0               1       0
+clickhouse-shard2-replica2.logplatform.local    9000    0               0       0
+>>> CREATE TABLE IF NOT EXISTS mgbench.logs2_local ON CLUSTER 'logs_cluste...
+    clickhouse-shard2-replica2.logplatform.local        9000    0               3       3
+clickhouse-shard1-replica1.logplatform.local    9000    0               2       1
+clickhouse-shard2-replica1.logplatform.local    9000    0               1       1
+clickhouse-shard1-replica2.logplatform.local    9000    0               0       0
+>>> CREATE TABLE IF NOT EXISTS mgbench.logs2 ON CLUSTER 'logs_cluster' (  ...
+    clickhouse-shard1-replica2.logplatform.local        9000    0               3       0
+clickhouse-shard2-replica1.logplatform.local    9000    0               2       0
+clickhouse-shard2-replica2.logplatform.local    9000    0               1       0
+clickhouse-shard1-replica1.logplatform.local    9000    0               0       0
+>>> CREATE TABLE IF NOT EXISTS mgbench.logs3_local ON CLUSTER 'logs_cluste...
+    clickhouse-shard2-replica2.logplatform.local        9000    0               3       3
+clickhouse-shard1-replica1.logplatform.local    9000    0               2       1
+clickhouse-shard2-replica1.logplatform.local    9000    0               1       1
+clickhouse-shard1-replica2.logplatform.local    9000    0               0       0
+>>> CREATE TABLE IF NOT EXISTS mgbench.logs3 ON CLUSTER 'logs_cluster' (  ...
+    clickhouse-shard2-replica2.logplatform.local        9000    0               3       2
+clickhouse-shard2-replica1.logplatform.local    9000    0               2       0
+clickhouse-shard1-replica1.logplatform.local    9000    0               1       0
+clickhouse-shard1-replica2.logplatform.local    9000    0               0       0
+clickhouse-ecs-sample $ curl -sf "http://${CH_HOST}:8123"     --user "default:${CH_PASSWORD}"     -d "SHOW TABLES FROM mgbench FORMAT PrettyCompact"   ┌─name────────┐
+1. │ logs1       │
+2. │ logs1_local │
+3. │ logs2       │
+4. │ logs2_local │
+5. │ logs3       │
+6. │ logs3_local │
+   └─────────────┘
+
+---
+
+benchmark $ ./run_benchmark.sh --host $CH_HOST --password $CH_PASSWORD --tag baseline
+=== MgBench SELECT Benchmark ===
+Host: clickhouse-shard1-replica1.logplatform.local:8123
+Tag: baseline
+Output: /home/cloudshell-user/clickhouse-ecs-sample/benchmark/results/baseline_20260322_111529.tsv
+
+--- q1.1 ---
+  cold run 1...
+benchmark $ cat results/baseline_20260322_111529.tsv 
+query_id        run_type        run_num elapsed_sec     rows_read       bytes_read      memory_usage
+benchmark $
