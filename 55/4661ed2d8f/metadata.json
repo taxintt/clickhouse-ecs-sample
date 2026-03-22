@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.5.0",
+  "checkpoint_id": "554661ed2d8f",
+  "strategy": "manual-commit",
+  "branch": "feature/add-mgbench-benchmark",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "benchmark/data/populate_extended.sh",
+    "benchmark/run_fulltext_benchmark.sh"
+  ],
+  "sessions": [
+    {
+      "metadata": "/55/4661ed2d8f/0/metadata.json",
+      "transcript": "/55/4661ed2d8f/0/full.jsonl",
+      "content_hash": "/55/4661ed2d8f/0/content_hash.txt",
+      "prompt": "/55/4661ed2d8f/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 17,
+    "cache_creation_tokens": 9652,
+    "cache_read_tokens": 1396035,
+    "output_tokens": 3969,
+    "api_call_count": 9
+  }
+}

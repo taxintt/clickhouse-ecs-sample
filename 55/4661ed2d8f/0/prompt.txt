@@ -1,0 +1,46 @@
+=== MgBench INSERT Benchmark ===
+Host: clickhouse-shard1-replica1.logplatform.local:8123
+Output: /home/cloudshell-user/clickhouse-ecs-sample/benchmark/results/insert_20260322_114202.tsv
+
+=== A) Batch INSERT Benchmark ===
+clickhouse-shard1-replica2.logplatform.local    9000    0               3       0
+clickhouse-shard2-replica1.logplatform.local    9000    0               2       0
+clickhouse-shard2-replica2.logplatform.local    9000    0               1       0
+clickhouse-shard1-replica1.logplatform.local    9000    0               0       0
+clickhouse-shard1-replica2.logplatform.local    9000    253     Code: 253. DB::Exception: Replica /clickhouse/tables/01/mgbench_logs2_insert_bench/replicas/clickhouse-shard1-replica2 already exists. (REPLICA_ALREADY_EXISTS) (version 24.12.6.70 (official build)) 3       1
+clickhouse-shard2-replica2.logplatform.local    9000    253     Code: 253. DB::Exception: Replica /clickhouse/tables/02/mgbench_logs2_insert_bench/replicas/clickhouse-shard2-replica2 already exists. (REPLICA_ALREADY_EXISTS) (version 24.12.6.70 (official build)) 2       1
+clickhouse-shard2-replica1.logplatform.local    9000    253     Code: 253. DB::Exception: Replica /clickhouse/tables/02/mgbench_logs2_insert_bench/replicas/clickhouse-shard2-replica1 already exists. (REPLICA_ALREADY_EXISTS) (version 24.12.6.70 (official build)) 1       1
+__exception__
+Code: 253. DB::Exception: There was an error on [clickhouse-shard1-replica2.logplatform.local:9000]: Code: 253. DB::Exception: Replica /clickhouse/tables/01/mgbench_logs2_insert_bench/replicas/clickhouse-shard1-replica2 already exists. (REPLICA_ALREADY_EXISTS) (version 24.12.6.70 (official build)). (REPLICA_ALREADY_EXISTS) (version 24.12.6.70 (official build))
+
+---
+
+benchmark $ for table in mgbench_logs2_insert_bench mgbench_logs2_stream_bench; do
+>     for pair in "01 1" "02 2"; do
+>       shard_id=${pair%% *}; shard_num=${pair##* }
+>       for n in 1 2; do
+>         curl -s "http://${CH_HOST}:8123" --user "default:${CH_PASSWORD}" \
+>           -d "SYSTEM DROP REPLICA 'clickhouse-shard${shard_num}-replica${n}' FROM ZKPATH '/clickhouse/tables/${shard_id}/${table}'" 2>/dev/null
+>       done
+>     done
+>   done
+Code: 305. DB::Exception: Specified path /clickhouse/tables/01/mgbench_logs2_stream_bench does not look like a table path. (TABLE_WAS_NOT_DROPPED) (version 24.12.6.70 (official build))
+Code: 305. DB::Exception: Specified path /clickhouse/tables/01/mgbench_logs2_stream_bench does not look like a table path. (TABLE_WAS_NOT_DROPPED) (version 24.12.6.70 (official build))
+Code: 305. DB::Exception: Specified path /clickhouse/tables/02/mgbench_logs2_stream_bench does not look like a table path. (TABLE_WAS_NOT_DROPPED) (version 24.12.6.70 (official build))
+Code: 305. DB::Exception: Specified path /clickhouse/tables/02/mgbench_logs2_stream_bench does not look like a table path. (TABLE_WAS_NOT_DROPPED) (version 24.12.6.70 (official build))
+benchmark $
+
+---
+
+benchmark $ cat results/insert_20260322_114321.tsv 
+test_type       table   batch_size      elapsed_sec     rows_inserted   rows_per_sec
+batch_insert    logs2   1000000 0.683593        1000000 1462859
+batch_insert    logs2   10000000        1.737661        10000000        5754862
+batch_insert    logs2   100000000       12.837937       100000000       7789414
+http_stream     logs2   100000  1       100000  100000
+http_stream     logs2   1000000 1       1000000 1000000
+http_stream     logs2   10000000        9       10000000        1111111
+
+---
+
+Phase 5 (全文検索)
