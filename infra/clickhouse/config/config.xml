@@ -1,0 +1,40 @@
+<clickhouse>
+    <storage_configuration>
+        <disks>
+            <s3>
+                <type>s3</type>
+                <endpoint from_env="CH_S3_ENDPOINT"/>
+                <use_environment_credentials>1</use_environment_credentials>
+            </s3>
+            <s3_cache>
+                <type>cache</type>
+                <disk>s3</disk>
+                <path>/var/lib/clickhouse/s3cache/</path>
+                <max_size>858993459200</max_size>
+                <cache_on_write_operations>1</cache_on_write_operations>
+                <do_not_evict_index_and_mark_files>1</do_not_evict_index_and_mark_files>
+            </s3_cache>
+        </disks>
+        <policies>
+            <s3_policy>
+                <volumes>
+                    <main>
+                        <disk>s3_cache</disk>
+                    </main>
+                </volumes>
+            </s3_policy>
+        </policies>
+    </storage_configuration>
+
+    <merge_tree>
+        <allow_remote_fs_zero_copy_replication>0</allow_remote_fs_zero_copy_replication>
+    </merge_tree>
+
+    <prometheus>
+        <endpoint>/metrics</endpoint>
+        <port>9363</port>
+        <metrics>1</metrics>
+        <events>1</events>
+        <asynchronous_metrics>1</asynchronous_metrics>
+    </prometheus>
+</clickhouse>

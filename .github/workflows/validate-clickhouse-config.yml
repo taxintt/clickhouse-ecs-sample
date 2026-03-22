@@ -1,0 +1,32 @@
+name: Validate ClickHouse Config
+
+on:
+  pull_request:
+    paths:
+      - 'infra/clickhouse/**'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install xmllint
+        run: sudo apt-get update && sudo apt-get install -y libxml2-utils
+
+      - name: Validate XML syntax
+        run: |
+          EXIT_CODE=0
+          for file in infra/clickhouse/config/*.xml; do
+            echo "Checking ${file}..."
+            if xmllint --noout "$file" 2>&1; then
+              echo "  OK"
+            else
+              echo "  FAIL"
+              EXIT_CODE=1
+            fi
+          done
+          exit $EXIT_CODE
+
+      - name: ShellCheck entrypoint-wrapper.sh
+        run: shellcheck infra/clickhouse/entrypoint-wrapper.sh
