@@ -74,8 +74,14 @@ variable "kinesis_shard_count" {
   default     = 4
 }
 
+variable "clickhouse_admin_password" {
+  description = "Admin password for ClickHouse (access_management enabled)"
+  type        = string
+  sensitive   = true
+}
+
 variable "clickhouse_default_password" {
-  description = "Default admin password for ClickHouse"
+  description = "Default user password for ClickHouse (DDL allowed, no access_management)"
   type        = string
   sensitive   = true
 }

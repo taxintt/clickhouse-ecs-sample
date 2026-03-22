@@ -1,5 +1,15 @@
 <clickhouse>
     <users>
+        <admin>
+            <password replace="replace">PLACEHOLDER_ADMIN_PASSWORD</password>
+            <networks replace="replace">
+                <ip>PLACEHOLDER_ALLOWED_NETWORKS</ip>
+            </networks>
+            <profile>default</profile>
+            <quota>default</quota>
+            <access_management>1</access_management>
+        </admin>
+
         <default>
             <password replace="replace">PLACEHOLDER_DEFAULT_PASSWORD</password>
             <networks replace="replace">
@@ -7,7 +17,6 @@
             </networks>
             <profile>default</profile>
             <quota>default</quota>
-            <access_management>1</access_management>
         </default>
 
         <readonly>

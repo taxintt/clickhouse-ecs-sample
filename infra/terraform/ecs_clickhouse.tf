@@ -60,6 +60,7 @@ resource "aws_secretsmanager_secret" "clickhouse_credentials" {
 resource "aws_secretsmanager_secret_version" "clickhouse_credentials" {
   secret_id = aws_secretsmanager_secret.clickhouse_credentials.id
   secret_string = jsonencode({
+    admin_password    = var.clickhouse_admin_password
     default_password  = var.clickhouse_default_password
     readonly_password = var.clickhouse_readonly_password
   })
@@ -133,6 +134,10 @@ resource "aws_ecs_task_definition" "clickhouse" {
     ]
 
     secrets = [
+      {
+        name      = "CH_ADMIN_PASSWORD"
+        valueFrom = "${aws_secretsmanager_secret.clickhouse_credentials.arn}:admin_password::"
+      },
       {
         name      = "CH_DEFAULT_PASSWORD"
         valueFrom = "${aws_secretsmanager_secret.clickhouse_credentials.arn}:default_password::"
