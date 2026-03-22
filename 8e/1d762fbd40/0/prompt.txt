@@ -1,0 +1,13 @@
+benchmark $ grep -v '^--' benchmark/schema/mgbench_tables_extended.sql | grep -v '^$' | \
+>     tr '\n' ' ' | sed 's/;/;\n/g' | while IFS= read -r stmt; do
+>       stmt=$(echo "$stmt" | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')
+>       if [ -n "$stmt" ]; then
+>         echo ">>> ${stmt:0:70}..."
+>         curl -s "http://${CH_HOST}:8123" --user "default:${CH_PASSWORD}" -d "${stmt}"
+>       fi
+>     done
+grep: benchmark/schema/mgbench_tables_extended.sql: No such file or directory
+
+---
+
+これまでの一通りの手順を正常に実施できました。ベンチマークを再度実施できるようにREADME.mdを作成してください。/benchmarkディレクトリ以下に作成してください。
