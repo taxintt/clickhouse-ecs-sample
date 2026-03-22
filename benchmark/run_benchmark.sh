@@ -34,6 +34,11 @@ RESULT_FILE="${RESULT_DIR}/${TAG}_${TIMESTAMP}.tsv"
 
 CH_URL="http://${CH_HOST}:${CH_PORT}"
 
+AUTH_OPTS=()
+if [[ -n "$CH_PASSWORD" ]]; then
+    AUTH_OPTS=(--user "default:${CH_PASSWORD}")
+fi
+
 run_query() {
     local query="$1"
     local settings="${2:-}"
@@ -41,11 +46,20 @@ run_query() {
     if [[ -n "$settings" ]]; then
         url="${url}&${settings}"
     fi
-    local auth_opts=()
-    if [[ -n "$CH_PASSWORD" ]]; then
-        auth_opts=(--user "default:${CH_PASSWORD}")
+    curl -s "${AUTH_OPTS[@]}" "${url}" -d "$query"
+}
+
+# Run a benchmark query and return elapsed time in seconds
+run_timed_query() {
+    local query="$1"
+    local settings="${2:-}"
+    local url="${CH_URL}/?database=mgbench"
+    if [[ -n "$settings" ]]; then
+        url="${url}&${settings}"
     fi
-    curl -s "${auth_opts[@]}" "${url}" -d "$query"
+    # -w outputs timing, -o discards response body
+    curl -s "${AUTH_OPTS[@]}" "${url}" -d "$query" \
+        -o /dev/null -w '%{time_total}'
 }
 
 drop_caches() {
@@ -55,7 +69,6 @@ drop_caches() {
 }
 
 # Parse queries from SQL file into parallel arrays
-# Queries are separated by comments starting with "-- qN.N"
 QUERY_IDS=()
 QUERY_SQLS=()
 
@@ -92,7 +105,7 @@ echo "Output: ${RESULT_FILE}"
 echo ""
 
 # Header
-printf 'query_id\trun_type\trun_num\telapsed_sec\trows_read\tbytes_read\tmemory_usage\n' > "$RESULT_FILE"
+printf 'query_id\trun_type\trun_num\telapsed_sec\n' > "$RESULT_FILE"
 
 parse_queries "${SCRIPT_DIR}/${QUERY_FILE}"
 echo "Loaded ${#QUERY_IDS[@]} queries"
@@ -106,64 +119,21 @@ for idx in "${!QUERY_IDS[@]}"; do
 
     # Cold run
     for i in $(seq 1 "$COLD_RUNS"); do
-        echo "  cold run ${i}..."
+        echo -n "  cold ${i}: "
         drop_caches
 
-        run_id="${TAG}_${query_id}_cold_${i}_${RANDOM}"
-        run_query "${query} FORMAT Null" \
-            "max_execution_time=600&log_queries=1&query_id=${run_id}" > /dev/null || true
-
-        # Flush query_log and get metrics
-        run_query "SYSTEM FLUSH LOGS" > /dev/null || true
-        metrics=$(run_query "
-            SELECT
-                round(query_duration_ms / 1000.0, 3) AS elapsed_sec,
-                read_rows,
-                read_bytes,
-                memory_usage
-            FROM system.query_log
-            WHERE type = 'QueryFinish'
-              AND query_id = '${run_id}'
-            LIMIT 1
-            FORMAT TabSeparated
-        ") || true
-
-        if [[ -n "$metrics" ]]; then
-            printf '%s\tcold\t%s\t%s\n' "${query_id}" "${i}" "${metrics}" >> "$RESULT_FILE"
-            echo "  ${metrics}"
-        else
-            echo "  WARNING: Could not retrieve metrics for cold run"
-        fi
+        elapsed=$(run_timed_query "${query} FORMAT Null" "max_execution_time=600")
+        echo "${elapsed}s"
+        printf '%s\tcold\t%s\t%s\n' "${query_id}" "${i}" "${elapsed}" >> "$RESULT_FILE"
     done
 
     # Warm runs
     for i in $(seq 1 "$WARM_RUNS"); do
-        echo "  warm run ${i}..."
+        echo -n "  warm ${i}: "
 
-        run_id="${TAG}_${query_id}_warm_${i}_${RANDOM}"
-        run_query "${query} FORMAT Null" \
-            "max_execution_time=600&log_queries=1&query_id=${run_id}" > /dev/null || true
-
-        run_query "SYSTEM FLUSH LOGS" > /dev/null || true
-        metrics=$(run_query "
-            SELECT
-                round(query_duration_ms / 1000.0, 3) AS elapsed_sec,
-                read_rows,
-                read_bytes,
-                memory_usage
-            FROM system.query_log
-            WHERE type = 'QueryFinish'
-              AND query_id = '${run_id}'
-            LIMIT 1
-            FORMAT TabSeparated
-        ") || true
-
-        if [[ -n "$metrics" ]]; then
-            printf '%s\twarm\t%s\t%s\n' "${query_id}" "${i}" "${metrics}" >> "$RESULT_FILE"
-            echo "  ${metrics}"
-        else
-            echo "  WARNING: Could not retrieve metrics for warm run ${i}"
-        fi
+        elapsed=$(run_timed_query "${query} FORMAT Null" "max_execution_time=600")
+        echo "${elapsed}s"
+        printf '%s\twarm\t%s\t%s\n' "${query_id}" "${i}" "${elapsed}" >> "$RESULT_FILE"
     done
 
     echo ""
@@ -171,3 +141,26 @@ done
 
 echo "=== Benchmark Complete ==="
 echo "Results saved to: ${RESULT_FILE}"
+echo ""
+
+# Print summary
+echo "=== Summary ==="
+printf '%-10s %12s %12s %12s\n' "query" "cold(s)" "warm_min(s)" "warm_max(s)"
+printf '%-10s %12s %12s %12s\n' "-----" "-------" "----------" "----------"
+while IFS=$'\t' read -r qid rtype rnum elapsed; do
+    [[ "$qid" == "query_id" ]] && continue
+    results["${qid}_${rtype}_${rnum}"]="$elapsed"
+done < "$RESULT_FILE"
+
+for idx in "${!QUERY_IDS[@]}"; do
+    qid="${QUERY_IDS[$idx]}"
+    cold="${results[${qid}_cold_1]:-N/A}"
+    warm_min="999"
+    warm_max="0"
+    for i in $(seq 1 "$WARM_RUNS"); do
+        w="${results[${qid}_warm_${i}]:-0}"
+        if awk "BEGIN{exit(!($w < $warm_min))}"; then warm_min="$w"; fi
+        if awk "BEGIN{exit(!($w > $warm_max))}"; then warm_max="$w"; fi
+    done
+    printf '%-10s %12s %12s %12s\n' "$qid" "$cold" "$warm_min" "$warm_max"
+done
