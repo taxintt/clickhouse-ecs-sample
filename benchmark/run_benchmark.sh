@@ -65,7 +65,7 @@ parse_queries() {
     while IFS= read -r line; do
         if [[ "$line" =~ ^--\ (q[0-9]+\.[0-9]+) ]]; then
             if [[ -n "$current_id" && -n "$current_query" ]]; then
-                echo "${current_id}|||${current_query}"
+                printf '%s\t%s\n' "$current_id" "$current_query"
             fi
             current_id="${BASH_REMATCH[1]}"
             current_query=""
@@ -77,7 +77,7 @@ parse_queries() {
     done < "$file"
 
     if [[ -n "$current_id" && -n "$current_query" ]]; then
-        echo "${current_id}|||${current_query}"
+        printf '%s\t%s\n' "$current_id" "$current_query"
     fi
 }
 
@@ -90,7 +90,7 @@ echo ""
 # Header
 echo -e "query_id\trun_type\trun_num\telapsed_sec\trows_read\tbytes_read\tmemory_usage" > "$RESULT_FILE"
 
-parse_queries "${SCRIPT_DIR}/${QUERY_FILE}" | while IFS='|||' read -r query_id query; do
+parse_queries "${SCRIPT_DIR}/${QUERY_FILE}" | while IFS=$'\t' read -r query_id query; do
     query=$(echo "$query" | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')
     if [[ -z "$query" ]]; then
         continue
