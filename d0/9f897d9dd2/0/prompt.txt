@@ -1,0 +1,13 @@
+clickhouse-serverが正常に起動していません。Cloudwatch lh
+
+---
+
+clickhouse-serverが正常に起動していません。Cloudwatch logsで調査してください。
+
+---
+
+escape_for_sed_xml 関数を修正してください
+
+---
+
+これでDockerイメージを再ビルド・再pushして、ECSサービスを再デプロイしてください

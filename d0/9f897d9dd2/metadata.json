@@ -1,0 +1,25 @@
+{
+  "cli_version": "0.5.0",
+  "checkpoint_id": "d09f897d9dd2",
+  "strategy": "manual-commit",
+  "branch": "feature/add-mgbench-benchmark",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "infra/clickhouse/entrypoint-wrapper.sh"
+  ],
+  "sessions": [
+    {
+      "metadata": "/d0/9f897d9dd2/0/metadata.json",
+      "transcript": "/d0/9f897d9dd2/0/full.jsonl",
+      "content_hash": "/d0/9f897d9dd2/0/content_hash.txt",
+      "prompt": "/d0/9f897d9dd2/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 29,
+    "cache_creation_tokens": 10369,
+    "cache_read_tokens": 1716050,
+    "output_tokens": 4055,
+    "api_call_count": 21
+  }
+}
