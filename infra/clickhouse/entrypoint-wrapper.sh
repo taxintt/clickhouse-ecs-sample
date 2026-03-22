@@ -2,6 +2,10 @@
 set -euo pipefail
 
 # Validate required environment variables
+if [ -z "${CH_ADMIN_PASSWORD:-}" ]; then
+  echo "ERROR: CH_ADMIN_PASSWORD is not set"
+  exit 1
+fi
 if [ -z "${CH_DEFAULT_PASSWORD:-}" ]; then
   echo "ERROR: CH_DEFAULT_PASSWORD is not set"
   exit 1
@@ -26,9 +30,11 @@ escape_for_sed_xml() {
 USERS_FILE="/etc/clickhouse-server/users.d/custom.xml"
 
 if [ -f "$USERS_FILE" ]; then
+  ESCAPED_ADMIN_PW=$(escape_for_sed_xml "$CH_ADMIN_PASSWORD")
   ESCAPED_DEFAULT_PW=$(escape_for_sed_xml "$CH_DEFAULT_PASSWORD")
   ESCAPED_READONLY_PW=$(escape_for_sed_xml "$CH_READONLY_PASSWORD")
   ESCAPED_NETWORKS=$(escape_for_sed_xml "${CH_ALLOWED_NETWORKS:-::/0}")
+  sed -i "s|PLACEHOLDER_ADMIN_PASSWORD|${ESCAPED_ADMIN_PW}|g" "$USERS_FILE"
   sed -i "s|PLACEHOLDER_DEFAULT_PASSWORD|${ESCAPED_DEFAULT_PW}|g" "$USERS_FILE"
   sed -i "s|PLACEHOLDER_READONLY_PASSWORD|${ESCAPED_READONLY_PW}|g" "$USERS_FILE"
   sed -i "s|PLACEHOLDER_ALLOWED_NETWORKS|${ESCAPED_NETWORKS}|g" "$USERS_FILE"

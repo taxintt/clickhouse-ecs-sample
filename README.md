@@ -24,6 +24,7 @@ aws_profile                  = "<your-profile>"
 aws_region                   = "ap-northeast-1"
 vpc_cidr                     = "10.0.0.0/16"
 availability_zones           = ["ap-northeast-1a", "ap-northeast-1c", "ap-northeast-1d"]
+clickhouse_admin_password    = "<strong-password>"
 clickhouse_default_password  = "<strong-password>"
 clickhouse_readonly_password = "<strong-password>"
 ```
