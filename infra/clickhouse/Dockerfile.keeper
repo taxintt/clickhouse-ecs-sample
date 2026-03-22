@@ -1,0 +1,9 @@
+FROM clickhouse/clickhouse-keeper:24.12-alpine
+
+# Copy Keeper configuration
+COPY config/keeper_config.xml /etc/clickhouse-keeper/keeper_config.xml
+
+HEALTHCHECK --interval=10s --timeout=5s --retries=3 \
+    CMD echo ruok | nc localhost 9181 | grep -q imok || exit 1
+
+EXPOSE 9181 9234

@@ -1,0 +1,29 @@
+<clickhouse>
+    <remote_servers>
+        <logs_cluster>
+            <secret from_env="CH_DEFAULT_PASSWORD"/>
+            <shard>
+                <internal_replication>1</internal_replication>
+                <replica>
+                    <host from_env="CH_SHARD1_REPLICA1_HOST"/>
+                    <port>9000</port>
+                </replica>
+                <replica>
+                    <host from_env="CH_SHARD1_REPLICA2_HOST"/>
+                    <port>9000</port>
+                </replica>
+            </shard>
+            <shard>
+                <internal_replication>1</internal_replication>
+                <replica>
+                    <host from_env="CH_SHARD2_REPLICA1_HOST"/>
+                    <port>9000</port>
+                </replica>
+                <replica>
+                    <host from_env="CH_SHARD2_REPLICA2_HOST"/>
+                    <port>9000</port>
+                </replica>
+            </shard>
+        </logs_cluster>
+    </remote_servers>
+</clickhouse>
