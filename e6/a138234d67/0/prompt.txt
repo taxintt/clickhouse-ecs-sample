@@ -1,0 +1,99 @@
+=== MgBench SELECT Benchmark ===
+Host: clickhouse-shard1-replica1.logplatform.local:8123
+Tag: baseline
+Output: /home/cloudshell-user/clickhouse-ecs-sample/benchmark/results/baseline_20260322_113008.tsv
+
+Loaded 14 queries
+
+--- q1.1 ---
+  cold 1: 0.002485s
+  warm 1: 0.002575s
+  warm 2: 0.002414s
+  warm 3: 0.002322s
+
+--- q1.2 ---
+  cold 1: 0.002241s
+  warm 1: 0.002241s
+  warm 2: 0.002208s
+  warm 3: 0.002159s
+
+--- q1.3 ---
+  cold 1: 0.002506s
+  warm 1: 0.002461s
+  warm 2: 0.002303s
+  warm 3: 0.003644s
+
+--- q1.4 ---
+  cold 1: 0.002236s
+  warm 1: 0.003894s
+  warm 2: 0.002109s
+  warm 3: 0.002129s
+
+--- q1.5 ---
+  cold 1: 0.002792s
+  warm 1: 0.002146s
+  warm 2: 0.002270s
+  warm 3: 0.002094s
+
+--- q1.6 ---
+  cold 1: 0.002178s
+  warm 1: 0.002092s
+  warm 2: 0.002172s
+  warm 3: 0.002156s
+
+--- q2.1 ---
+  cold 1: 0.003847s
+  warm 1: 0.002041s
+  warm 2: 0.002077s
+  warm 3: 0.002187s
+
+--- q2.2 ---
+  cold 1: 0.002106s
+  warm 1: 0.003045s
+  warm 2: 0.002122s
+  warm 3: 0.003564s
+
+--- q2.3 ---
+  cold 1: 0.002544s
+  warm 1: 0.002541s
+  warm 2: 0.002147s
+  warm 3: 0.002311s
+
+--- q2.4 ---
+  cold 1: 0.001949s
+  warm 1: 0.001975s
+  warm 2: 0.001967s
+  warm 3: 0.001994s
+
+--- q2.5 ---
+  cold 1: 0.001865s
+  warm 1: 0.001899s
+  warm 2: 0.001994s
+  warm 3: 0.001904s
+
+--- q2.6 ---
+  cold 1: 0.001928s
+  warm 1: 0.001910s
+  warm 2: 0.002022s
+  warm 3: 0.001851s
+
+--- q3.1 ---
+  cold 1: 0.001774s
+  warm 1: 0.002093s
+  warm 2: 0.001924s
+  warm 3: 0.001956s
+
+--- q3.4 ---
+  cold 1: 0.002021s
+  warm 1: 0.002711s
+  warm 2: 0.001883s
+  warm 3: 0.002248s
+
+=== Benchmark Complete ===
+Results saved to: /home/cloudshell-user/clickhouse-ecs-sample/benchmark/results/baseline_20260322_113008.tsv
+
+=== Summary ===
+query           cold(s)  warm_min(s)  warm_max(s)
+-----           -------   ----------   ----------
+./run_benchmark.sh: line 152: q1.1_cold_1: syntax error: invalid arithmetic operator (error token is ".1_cold_1")
+./run_benchmark.sh: line 156: q1.1_cold_1: syntax error: invalid arithmetic operator (error token is ".1_cold_1")
