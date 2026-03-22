@@ -30,12 +30,12 @@ TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 RESULT_FILE="${RESULT_DIR}/fulltext_${TIMESTAMP}.tsv"
 QUERY_FILE="${SCRIPT_DIR}/queries/fulltext_search.sql"
 
-CURL_OPTS=(-s --fail-with-body)
-if [[ -n "$CH_PASSWORD" ]]; then
-    CURL_OPTS+=(--user "default:${CH_PASSWORD}")
-fi
-
 CH_URL="http://${CH_HOST}:${CH_PORT}"
+
+AUTH_OPTS=()
+if [[ -n "$CH_PASSWORD" ]]; then
+    AUTH_OPTS=(--user "default:${CH_PASSWORD}")
+fi
 
 run_query() {
     local query="$1"
@@ -44,7 +44,18 @@ run_query() {
     if [[ -n "$settings" ]]; then
         url="${url}&${settings}"
     fi
-    curl "${CURL_OPTS[@]}" "${url}" -d "$query"
+    curl -s "${AUTH_OPTS[@]}" "${url}" -d "$query"
+}
+
+run_timed_query() {
+    local query="$1"
+    local settings="${2:-}"
+    local url="${CH_URL}/?database=mgbench"
+    if [[ -n "$settings" ]]; then
+        url="${url}&${settings}"
+    fi
+    curl -s "${AUTH_OPTS[@]}" "${url}" -d "$query" \
+        -o /dev/null -w '%{time_total}'
 }
 
 drop_caches() {
@@ -54,13 +65,13 @@ drop_caches() {
 }
 
 # Table patterns to test
-TABLES=(
-    "noidx:mgbench.logs2_ext_noidx"
-    "tokenbf:mgbench.logs2_ext_tokenbf"
-    "ngrambf:mgbench.logs2_ext_ngrambf"
-)
+TABLE_TYPES=("noidx" "tokenbf" "ngrambf")
+TABLE_NAMES=("mgbench.logs2_ext_noidx" "mgbench.logs2_ext_tokenbf" "mgbench.logs2_ext_ngrambf")
 
-# Parse queries from SQL file (same logic as run_benchmark.sh)
+# Parse queries from SQL file into parallel arrays
+QUERY_IDS=()
+QUERY_SQLS=()
+
 parse_queries() {
     local file="$1"
     local current_id=""
@@ -69,7 +80,8 @@ parse_queries() {
     while IFS= read -r line; do
         if [[ "$line" =~ ^--\ (ft[0-9]+) ]]; then
             if [[ -n "$current_id" && -n "$current_query" ]]; then
-                printf '%s\t%s\n' "$current_id" "$current_query"
+                QUERY_IDS+=("$current_id")
+                QUERY_SQLS+=("$current_query")
             fi
             current_id="${BASH_REMATCH[1]}"
             current_query=""
@@ -81,7 +93,8 @@ parse_queries() {
     done < "$file"
 
     if [[ -n "$current_id" && -n "$current_query" ]]; then
-        printf '%s\t%s\n' "$current_id" "$current_query"
+        QUERY_IDS+=("$current_id")
+        QUERY_SQLS+=("$current_query")
     fi
 }
 
@@ -91,19 +104,21 @@ echo "Output: ${RESULT_FILE}"
 echo ""
 
 # Header
-echo -e "query_id\tindex_type\trun_type\trun_num\telapsed_sec\trows_read\tbytes_read\tmemory_usage" > "$RESULT_FILE"
+printf 'query_id\tindex_type\trun_type\trun_num\telapsed_sec\n' > "$RESULT_FILE"
 
-parse_queries "$QUERY_FILE" | while IFS=$'\t' read -r query_id query_template; do
-    query_template=$(echo "$query_template" | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')
-    if [[ -z "$query_template" ]]; then
-        continue
-    fi
+parse_queries "$QUERY_FILE"
+echo "Loaded ${#QUERY_IDS[@]} queries"
+echo ""
+
+for idx in "${!QUERY_IDS[@]}"; do
+    query_id="${QUERY_IDS[$idx]}"
+    query_template="${QUERY_SQLS[$idx]}"
 
     echo "=== ${query_id} ==="
 
-    for table_entry in "${TABLES[@]}"; do
-        index_type="${table_entry%%:*}"
-        table_name="${table_entry#*:}"
+    for tidx in "${!TABLE_TYPES[@]}"; do
+        index_type="${TABLE_TYPES[$tidx]}"
+        table_name="${TABLE_NAMES[$tidx]}"
 
         # Replace {TABLE} placeholder with actual table name
         query="${query_template//\{TABLE\}/${table_name}}"
@@ -112,59 +127,21 @@ parse_queries "$QUERY_FILE" | while IFS=$'\t' read -r query_id query_template; d
 
         # Cold run
         for i in $(seq 1 "$COLD_RUNS"); do
-            echo "    cold run ${i}..."
+            echo -n "    cold ${i}: "
             drop_caches
 
-            run_id="ft_${query_id}_${index_type}_cold_${i}_$(date +%s%N)"
-            run_query "${query} FORMAT Null" \
-                "max_execution_time=600&log_queries=1&query_id=${run_id}" > /dev/null 2>&1
-
-            run_query "SYSTEM FLUSH LOGS" > /dev/null 2>&1
-            metrics=$(run_query "
-                SELECT
-                    round(query_duration_ms / 1000.0, 3) AS elapsed_sec,
-                    read_rows,
-                    read_bytes,
-                    memory_usage
-                FROM system.query_log
-                WHERE type = 'QueryFinish'
-                  AND query_id = '${run_id}'
-                LIMIT 1
-                FORMAT TabSeparated
-            ")
-
-            if [[ -n "$metrics" ]]; then
-                echo -e "${query_id}\t${index_type}\tcold\t${i}\t${metrics}" >> "$RESULT_FILE"
-                echo "    ${metrics}"
-            fi
+            elapsed=$(run_timed_query "${query} FORMAT Null" "max_execution_time=600")
+            echo "${elapsed}s"
+            printf '%s\t%s\tcold\t%s\t%s\n' "${query_id}" "${index_type}" "${i}" "${elapsed}" >> "$RESULT_FILE"
         done
 
         # Warm runs
         for i in $(seq 1 "$WARM_RUNS"); do
-            echo "    warm run ${i}..."
+            echo -n "    warm ${i}: "
 
-            run_id="ft_${query_id}_${index_type}_warm_${i}_$(date +%s%N)"
-            run_query "${query} FORMAT Null" \
-                "max_execution_time=600&log_queries=1&query_id=${run_id}" > /dev/null 2>&1
-
-            run_query "SYSTEM FLUSH LOGS" > /dev/null 2>&1
-            metrics=$(run_query "
-                SELECT
-                    round(query_duration_ms / 1000.0, 3) AS elapsed_sec,
-                    read_rows,
-                    read_bytes,
-                    memory_usage
-                FROM system.query_log
-                WHERE type = 'QueryFinish'
-                  AND query_id = '${run_id}'
-                LIMIT 1
-                FORMAT TabSeparated
-            ")
-
-            if [[ -n "$metrics" ]]; then
-                echo -e "${query_id}\t${index_type}\twarm\t${i}\t${metrics}" >> "$RESULT_FILE"
-                echo "    ${metrics}"
-            fi
+            elapsed=$(run_timed_query "${query} FORMAT Null" "max_execution_time=600")
+            echo "${elapsed}s"
+            printf '%s\t%s\twarm\t%s\t%s\n' "${query_id}" "${index_type}" "${i}" "${elapsed}" >> "$RESULT_FILE"
         done
     done
 
@@ -173,3 +150,23 @@ done
 
 echo "=== Fulltext Benchmark Complete ==="
 echo "Results saved to: ${RESULT_FILE}"
+echo ""
+
+# Print summary: warm average per query+index_type
+echo "=== Summary (warm avg) ==="
+awk -F'\t' '
+NR == 1 { next }
+$3 == "warm" {
+    key = $1 "\t" $2
+    sum[key] += $5; cnt[key]++
+    if (!(key in order)) { order[key] = NR; keys[++n] = key }
+}
+END {
+    printf "%-8s %-10s %12s\n", "query", "index", "warm_avg(s)"
+    printf "%-8s %-10s %12s\n", "-----", "-----", "-----------"
+    for (i = 1; i <= n; i++) {
+        k = keys[i]
+        split(k, a, "\t")
+        printf "%-8s %-10s %12.6f\n", a[1], a[2], sum[k] / cnt[k]
+    }
+}' "$RESULT_FILE"

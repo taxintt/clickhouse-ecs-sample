@@ -19,12 +19,12 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-CURL_OPTS=(-s --fail-with-body)
-if [[ -n "$CH_PASSWORD" ]]; then
-    CURL_OPTS+=(--user "default:${CH_PASSWORD}")
-fi
-
 CH_URL="http://${CH_HOST}:${CH_PORT}"
+
+AUTH_OPTS=()
+if [[ -n "$CH_PASSWORD" ]]; then
+    AUTH_OPTS=(--user "default:${CH_PASSWORD}")
+fi
 
 run_query() {
     local query="$1"
@@ -33,7 +33,7 @@ run_query() {
     if [[ -n "$settings" ]]; then
         url="${url}&${settings}"
     fi
-    curl "${CURL_OPTS[@]}" "${url}" -d "$query"
+    curl -s "${AUTH_OPTS[@]}" "${url}" -d "$query"
 }
 
 # The INSERT query that generates realistic raw_log content
