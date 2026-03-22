@@ -1,0 +1,44 @@
+benchmark $ curl -s "http://${CH_HOST}:8123" --user "default:${CH_PASSWORD}" \
+>     -d "SELECT count() FROM mgbench.logs1"
+22023859
+benchmark $ curl -s "http://${CH_HOST}:8123/?database=mgbench" \
+>     --user "default:${CH_PASSWORD}" \
+>     -d "SELECT machine_name, count() FROM logs1 WHERE machine_name IN ('anansi','aragog','urd') GROUP BY machine_name FORMAT PrettyCompact"
+   ┌─machine_name─┬─count()─┐
+1. │ urd          │   32491 │
+2. │ anansi       │   32491 │
+3. │ aragog       │   32491 │
+   └──────────────┴─────────┘
+benchmark $
+
+---
+
+判断するために改めてベンチマークの全体像を示してください。コマンドと共に。
+
+---
+
+22M → 約1億レコードに増幅するのだと時間は短くすみますか
+
+---
+
+benchmark $ ./run_insert_benchmark.sh --host "$CH_HOST" --password "$CH_PASSWORD"
+=== MgBench INSERT Benchmark ===
+Host: clickhouse-shard1-replica1.logplatform.local:8123
+Output: /home/cloudshell-user/clickhouse-ecs-sample/benchmark/results/insert_20260322_114022.tsv
+
+=== A) Batch INSERT Benchmark ===
+clickhouse-shard2-replica2.logplatform.local    9000    0               3       2
+clickhouse-shard1-replica2.logplatform.local    9000    0               2       1
+clickhouse-shard2-replica1.logplatform.local    9000    0               1       1
+clickhouse-shard1-replica1.logplatform.local    9000    0               0       0
+clickhouse-shard2-replica2.logplatform.local    9000    0               3       3
+clickhouse-shard2-replica1.logplatform.local    9000    0               2       2
+clickhouse-shard1-replica2.logplatform.local    9000    0               1       0
+clickhouse-shard1-replica1.logplatform.local    9000    0               0       0
+
+--- Batch size: 1000000 ---
+clickhouse-shard2-replica2.logplatform.local    9000    0               3       2
+clickhouse-shard2-replica1.logplatform.local    9000    0               2       2
+clickhouse-shard1-replica1.logplatform.local    9000    0               1       0
+clickhouse-shard1-replica2.logplatform.local    9000    0               0       0
+./run_insert_benchmark.sh: line 101: bc: command not found
