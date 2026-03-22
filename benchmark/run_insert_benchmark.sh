@@ -28,12 +28,12 @@ RESULT_DIR="${SCRIPT_DIR}/results"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 RESULT_FILE="${RESULT_DIR}/insert_${TIMESTAMP}.tsv"
 
-CURL_OPTS=(-s --fail-with-body)
-if [[ -n "$CH_PASSWORD" ]]; then
-    CURL_OPTS+=(--user "default:${CH_PASSWORD}")
-fi
-
 CH_URL="http://${CH_HOST}:${CH_PORT}"
+
+AUTH_OPTS=()
+if [[ -n "$CH_PASSWORD" ]]; then
+    AUTH_OPTS=(--user "default:${CH_PASSWORD}")
+fi
 
 run_query() {
     local query="$1"
@@ -42,7 +42,19 @@ run_query() {
     if [[ -n "$settings" ]]; then
         url="${url}&${settings}"
     fi
-    curl "${CURL_OPTS[@]}" "${url}" -d "$query"
+    curl -s "${AUTH_OPTS[@]}" "${url}" -d "$query"
+}
+
+# Run query and return elapsed time via curl -w
+run_timed_query() {
+    local query="$1"
+    local settings="${2:-}"
+    local url="${CH_URL}/?database=mgbench"
+    if [[ -n "$settings" ]]; then
+        url="${url}&${settings}"
+    fi
+    curl -s "${AUTH_OPTS[@]}" "${url}" -d "$query" \
+        -o /dev/null -w '%{time_total}'
 }
 
 echo "=== MgBench INSERT Benchmark ==="
@@ -51,7 +63,7 @@ echo "Output: ${RESULT_FILE}"
 echo ""
 
 # Header
-echo -e "test_type\ttable\tbatch_size\telapsed_sec\trows_inserted\trows_per_sec" > "$RESULT_FILE"
+printf 'test_type\ttable\tbatch_size\telapsed_sec\trows_inserted\trows_per_sec\n' > "$RESULT_FILE"
 
 # =========================================================================
 # A) Batch INSERT (INSERT INTO ... SELECT)
@@ -88,23 +100,17 @@ for batch_size in "${BATCH_SIZES[@]}"; do
     run_query "TRUNCATE TABLE mgbench.logs2_insert_bench ON CLUSTER 'logs_cluster'"
     sleep 2
 
-    start_time=$(date +%s%N)
-
-    run_query "
+    elapsed_sec=$(run_timed_query "
         INSERT INTO logs2_insert_bench
         SELECT * FROM logs2_local
         LIMIT ${batch_size}
-    " "max_execution_time=3600&max_insert_threads=4"
-
-    end_time=$(date +%s%N)
-    elapsed_ms=$(( (end_time - start_time) / 1000000 ))
-    elapsed_sec=$(echo "scale=3; ${elapsed_ms} / 1000" | bc)
+    " "max_execution_time=3600&max_insert_threads=4")
 
     actual_rows=$(run_query "SELECT count() FROM logs2_insert_bench")
-    rows_per_sec=$(echo "scale=0; ${actual_rows} / (${elapsed_ms} / 1000)" | bc 2>/dev/null || echo "N/A")
+    rows_per_sec=$(awk "BEGIN { printf \"%.0f\", ${actual_rows} / ${elapsed_sec} }" 2>/dev/null || echo "N/A")
 
     echo "  Rows: ${actual_rows}, Time: ${elapsed_sec}s, Rate: ${rows_per_sec} rows/sec"
-    echo -e "batch_insert\tlogs2\t${batch_size}\t${elapsed_sec}\t${actual_rows}\t${rows_per_sec}" >> "$RESULT_FILE"
+    printf 'batch_insert\tlogs2\t%s\t%s\t%s\t%s\n' "${batch_size}" "${elapsed_sec}" "${actual_rows}" "${rows_per_sec}" >> "$RESULT_FILE"
 done
 
 # Cleanup batch insert table
@@ -146,25 +152,27 @@ for stream_size in "${STREAM_SIZES[@]}"; do
     run_query "TRUNCATE TABLE mgbench.logs2_stream_bench ON CLUSTER 'logs_cluster'"
     sleep 2
 
-    # Export data from source table, pipe to HTTP INSERT
-    start_time=$(date +%s%N)
+    # Read from source as TSV and pipe to target via HTTP, measure total time
+    start_sec=$(date +%s)
 
-    # Read from source as TSV and pipe to target via HTTP
-    curl "${CURL_OPTS[@]}" \
-        "${CH_URL}/?database=mgbench&query=$(python3 -c "import urllib.parse; print(urllib.parse.quote('SELECT * FROM logs2_local LIMIT ${stream_size} FORMAT TabSeparated'))")" \
-    | curl "${CURL_OPTS[@]}" \
-        "${CH_URL}/?database=mgbench&query=$(python3 -c "import urllib.parse; print(urllib.parse.quote('INSERT INTO logs2_stream_bench FORMAT TabSeparated'))")" \
+    select_query="SELECT * FROM logs2_local LIMIT ${stream_size} FORMAT TabSeparated"
+    insert_query="INSERT INTO logs2_stream_bench FORMAT TabSeparated"
+
+    curl -s "${AUTH_OPTS[@]}" \
+        "${CH_URL}/?database=mgbench" -d "${select_query}" \
+    | curl -s "${AUTH_OPTS[@]}" \
+        "${CH_URL}/?database=mgbench&query=${insert_query// /+}" \
         --data-binary @-
 
-    end_time=$(date +%s%N)
-    elapsed_ms=$(( (end_time - start_time) / 1000000 ))
-    elapsed_sec=$(echo "scale=3; ${elapsed_ms} / 1000" | bc)
+    end_sec=$(date +%s)
+    elapsed_sec=$((end_sec - start_sec))
+    if [[ "$elapsed_sec" -eq 0 ]]; then elapsed_sec=1; fi
 
     actual_rows=$(run_query "SELECT count() FROM logs2_stream_bench")
-    rows_per_sec=$(echo "scale=0; ${actual_rows} / (${elapsed_ms} / 1000)" | bc 2>/dev/null || echo "N/A")
+    rows_per_sec=$(awk "BEGIN { printf \"%.0f\", ${actual_rows} / ${elapsed_sec} }" 2>/dev/null || echo "N/A")
 
     echo "  Rows: ${actual_rows}, Time: ${elapsed_sec}s, Rate: ${rows_per_sec} rows/sec"
-    echo -e "http_stream\tlogs2\t${stream_size}\t${elapsed_sec}\t${actual_rows}\t${rows_per_sec}" >> "$RESULT_FILE"
+    printf 'http_stream\tlogs2\t%s\t%s\t%s\t%s\n' "${stream_size}" "${elapsed_sec}" "${actual_rows}" "${rows_per_sec}" >> "$RESULT_FILE"
 done
 
 # Cleanup
