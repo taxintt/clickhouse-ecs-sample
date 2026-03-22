@@ -145,22 +145,24 @@ echo ""
 
 # Print summary
 echo "=== Summary ==="
-printf '%-10s %12s %12s %12s\n' "query" "cold(s)" "warm_min(s)" "warm_max(s)"
-printf '%-10s %12s %12s %12s\n' "-----" "-------" "----------" "----------"
-while IFS=$'\t' read -r qid rtype rnum elapsed; do
-    [[ "$qid" == "query_id" ]] && continue
-    results["${qid}_${rtype}_${rnum}"]="$elapsed"
-done < "$RESULT_FILE"
-
-for idx in "${!QUERY_IDS[@]}"; do
-    qid="${QUERY_IDS[$idx]}"
-    cold="${results[${qid}_cold_1]:-N/A}"
-    warm_min="999"
-    warm_max="0"
-    for i in $(seq 1 "$WARM_RUNS"); do
-        w="${results[${qid}_warm_${i}]:-0}"
-        if awk "BEGIN{exit(!($w < $warm_min))}"; then warm_min="$w"; fi
-        if awk "BEGIN{exit(!($w > $warm_max))}"; then warm_max="$w"; fi
-    done
-    printf '%-10s %12s %12s %12s\n' "$qid" "$cold" "$warm_min" "$warm_max"
-done
+awk -F'\t' '
+NR == 1 { next }
+{
+    qid = $1; rtype = $2; elapsed = $4
+    if (rtype == "cold") { cold[qid] = elapsed }
+    if (rtype == "warm") {
+        if (!(qid in wmin) || elapsed < wmin[qid]) wmin[qid] = elapsed
+        if (!(qid in wmax) || elapsed > wmax[qid]) wmax[qid] = elapsed
+        wsum[qid] += elapsed; wcnt[qid]++
+    }
+    if (!(qid in order)) { order[qid] = NR; ids[++n] = qid }
+}
+END {
+    printf "%-10s %12s %12s %12s %12s\n", "query", "cold(s)", "warm_min(s)", "warm_avg(s)", "warm_max(s)"
+    printf "%-10s %12s %12s %12s %12s\n", "-----", "-------", "----------", "----------", "----------"
+    for (i = 1; i <= n; i++) {
+        q = ids[i]
+        avg = (wcnt[q] > 0) ? wsum[q] / wcnt[q] : 0
+        printf "%-10s %12s %12s %12.6f %12s\n", q, cold[q], wmin[q], avg, wmax[q]
+    }
+}' "$RESULT_FILE"
