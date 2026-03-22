@@ -1,0 +1,626 @@
+benchmark $ ./run_fulltext_benchmark.sh --host "$CH_HOST" --password "$CH_PASSWORD"
+=== Fulltext Search Benchmark ===
+Host: clickhouse-shard1-replica1.logplatform.local:8123
+Output: /home/cloudshell-user/clickhouse-ecs-sample/benchmark/results/fulltext_20260322_115516.tsv
+
+Loaded 8 queries
+
+=== ft1 ===
+  --- noidx ---
+    cold 1: 0.002217s
+    warm 1: 0.001874s
+    warm 2: 0.001816s
+    warm 3: 0.001874s
+  --- tokenbf ---
+    cold 1: 0.002110s
+    warm 1: 0.001924s
+    warm 2: 0.001854s
+    warm 3: 0.002035s
+  --- ngrambf ---
+    cold 1: 0.001922s
+    warm 1: 0.002005s
+    warm 2: 0.001936s
+    warm 3: 0.001846s
+
+=== ft2 ===
+  --- noidx ---
+    cold 1: 0.001807s
+    warm 1: 0.001776s
+    warm 2: 0.001883s
+    warm 3: 0.001800s
+  --- tokenbf ---
+    cold 1: 0.001906s
+    warm 1: 0.001982s
+    warm 2: 0.001739s
+    warm 3: 0.001770s
+  --- ngrambf ---
+    cold 1: 0.001740s
+    warm 1: 0.001941s
+    warm 2: 0.001896s
+    warm 3: 0.001809s
+
+=== ft3 ===
+  --- noidx ---
+    cold 1: 0.004828s
+    warm 1: 0.002041s
+    warm 2: 0.001965s
+    warm 3: 0.001897s
+  --- tokenbf ---
+    cold 1: 0.001913s
+    warm 1: 0.001897s
+    warm 2: 0.001937s
+    warm 3: 0.001769s
+  --- ngrambf ---
+    cold 1: 0.002028s
+    warm 1: 0.002052s
+    warm 2: 0.001974s
+    warm 3: 0.002926s
+
+=== ft4 ===
+  --- noidx ---
+    cold 1: 0.002011s
+    warm 1: 0.002084s
+    warm 2: 0.002297s
+    warm 3: 0.003005s
+  --- tokenbf ---
+    cold 1: 0.001929s
+    warm 1: 0.001908s
+    warm 2: 0.001736s
+    warm 3: 0.001932s
+  --- ngrambf ---
+    cold 1: 0.001906s
+    warm 1: 0.001785s
+    warm 2: 0.001831s
+    warm 3: 0.001828s
+
+=== ft5 ===
+  --- noidx ---
+    cold 1: 0.001774s
+    warm 1: 0.002272s
+    warm 2: 0.002065s
+    warm 3: 0.001909s
+  --- tokenbf ---
+    cold 1: 0.004275s
+    warm 1: 0.003542s
+    warm 2: 0.002028s
+    warm 3: 0.001683s
+  --- ngrambf ---
+    cold 1: 0.001903s
+    warm 1: 0.001819s
+    warm 2: 0.001731s
+    warm 3: 0.002689s
+
+=== ft6 ===
+  --- noidx ---
+    cold 1: 0.001760s
+    warm 1: 0.001881s
+    warm 2: 0.001655s
+    warm 3: 0.001776s
+  --- tokenbf ---
+    cold 1: 0.001680s
+    warm 1: 0.001798s
+    warm 2: 0.001820s
+    warm 3: 0.001860s
+  --- ngrambf ---
+    cold 1: 0.001759s
+    warm 1: 0.001720s
+    warm 2: 0.001816s
+    warm 3: 0.001910s
+
+=== ft7 ===
+  --- noidx ---
+    cold 1: 0.001944s
+    warm 1: 0.002716s
+    warm 2: 0.002035s
+    warm 3: 0.001892s
+  --- tokenbf ---
+    cold 1: 0.001782s
+    warm 1: 0.001821s
+    warm 2: 0.002039s
+    warm 3: 0.002222s
+  --- ngrambf ---
+    cold 1: 0.001854s
+    warm 1: 0.001872s
+    warm 2: 0.001926s
+    warm 3: 0.001858s
+
+=== ft8 ===
+  --- noidx ---
+    cold 1: 0.001845s
+    warm 1: 0.002157s
+    warm 2: 0.002107s
+    warm 3: 0.004628s
+  --- tokenbf ---
+    cold 1: 0.001902s
+    warm 1: 0.002447s
+    warm 2: 0.001974s
+    warm 3: 0.002712s
+  --- ngrambf ---
+    cold 1: 0.002133s
+    warm 1: 0.002054s
+    warm 2: 0.001742s
+    warm 3: 0.002246s
+
+=== Fulltext Benchmark Complete ===
+Results saved to: /home/cloudshell-user/clickhouse-ecs-sample/benchmark/results/fulltext_20260322_115516.tsv
+
+=== Summary (warm avg) ===
+query    index       warm_avg(s)
+-----    -----       -----------
+ft1      noidx          0.001855
+ft1      tokenbf        0.001938
+ft1      ngrambf        0.001929
+ft2      noidx          0.001820
+ft2      tokenbf        0.001830
+ft2      ngrambf        0.001882
+ft3      noidx          0.001968
+ft3      tokenbf        0.001868
+ft3      ngrambf        0.002317
+ft4      noidx          0.002462
+ft4      tokenbf        0.001859
+ft4      ngrambf        0.001815
+ft5      noidx          0.002082
+ft5      tokenbf        0.002418
+ft5      ngrambf        0.002080
+ft6      noidx          0.001771
+ft6      tokenbf        0.001826
+ft6      ngrambf        0.001815
+ft7      noidx          0.002214
+ft7      tokenbf        0.002027
+ft7      ngrambf        0.001885
+ft8      noidx          0.002964
+ft8      tokenbf        0.002378
+ft8      ngrambf        0.002014
+
+---
+
+clickhouse-ecs-sample $ cd benchmark/
+benchmark $ ./data/load_data.sh --host "$CH_HOST" --password "$CH_PASSWORD"
+=== MgBench Data Loader ===
+Host: clickhouse-shard1-replica1.logplatform.local:8123
+
+--- Loading logs1 from https://datasets.clickhouse.com/mgbench1.csv.xz ---
+  Loaded: 22023859 rows in 60s
+
+--- Loading logs2 from https://datasets.clickhouse.com/mgbench2.csv.xz ---
+  Loaded: 75748118 rows in 45s
+
+--- Loading logs3 from https://datasets.clickhouse.com/mgbench3.csv.xz ---
+  Loaded: 108957039 rows in 60s
+
+=== Load Summary ===
+  logs1: 22023859 rows, 640.41 MiB
+  logs2: 75748118 rows, 921.02 MiB
+  logs3: 108957039 rows, 909.86 MiB
+
+=== Verifying replication ===
+ip-10-0-100-184.ap-northeast-1.compute.internal 22023859
+ip-10-0-101-198.ap-northeast-1.compute.internal 22023859
+ip-10-0-100-184.ap-northeast-1.compute.internal 75748118
+ip-10-0-101-198.ap-northeast-1.compute.internal 75748118
+ip-10-0-100-184.ap-northeast-1.compute.internal 108957039
+ip-10-0-101-198.ap-northeast-1.compute.internal 95829559
+Done.
+=== MgBench SELECT Benchmark ===
+Host: clickhouse-shard1-replica1.logplatform.local:8123
+Tag: baseline
+Output: /home/cloudshell-user/clickhouse-ecs-sample/benchmark/results/baseline_20260322_113218.tsv
+
+Loaded 14 queries
+
+--- q1.1 ---
+  cold 1: 0.002344s
+  warm 1: 0.002340s
+  warm 2: 0.002272s
+  warm 3: 0.002531s
+
+--- q1.2 ---
+  cold 1: 0.002172s
+  warm 1: 0.001970s
+  warm 2: 0.001834s
+  warm 3: 0.001856s
+
+--- q1.3 ---
+  cold 1: 0.001922s
+  warm 1: 0.002105s
+  warm 2: 0.002033s
+  warm 3: 0.002107s
+
+--- q1.4 ---
+  cold 1: 0.002077s
+  warm 1: 0.001796s
+  warm 2: 0.001889s
+  warm 3: 0.001760s
+
+--- q1.5 ---
+  cold 1: 0.001889s
+  warm 1: 0.001794s
+  warm 2: 0.001952s
+  warm 3: 0.001999s
+
+--- q1.6 ---
+  cold 1: 0.002298s
+  warm 1: 0.002233s
+  warm 2: 0.002078s
+  warm 3: 0.002248s
+
+--- q2.1 ---
+  cold 1: 0.002277s
+  warm 1: 0.002191s
+  warm 2: 0.001806s
+  warm 3: 0.002603s
+
+--- q2.2 ---
+  cold 1: 0.001896s
+  warm 1: 0.001915s
+  warm 2: 0.002865s
+  warm 3: 0.002136s
+
+--- q2.3 ---
+  cold 1: 0.002124s
+  warm 1: 0.002186s
+  warm 2: 0.002024s
+  warm 3: 0.002258s
+
+--- q2.4 ---
+  cold 1: 0.001939s
+  warm 1: 0.002078s
+  warm 2: 0.002053s
+  warm 3: 0.001929s
+
+--- q2.5 ---
+  cold 1: 0.002992s
+  warm 1: 0.002040s
+  warm 2: 0.001975s
+  warm 3: 0.003381s
+
+--- q2.6 ---
+  cold 1: 0.001899s
+  warm 1: 0.001995s
+  warm 2: 0.001966s
+  warm 3: 0.002350s
+
+--- q3.1 ---
+  cold 1: 0.002031s
+  warm 1: 0.001846s
+  warm 2: 0.001911s
+  warm 3: 0.001969s
+
+--- q3.4 ---
+  cold 1: 0.002422s
+  warm 1: 0.001979s
+  warm 2: 0.001942s
+  warm 3: 0.002041s
+
+=== Benchmark Complete ===
+Results saved to: /home/cloudshell-user/clickhouse-ecs-sample/benchmark/results/baseline_20260322_113218.tsv
+
+=== Summary ===
+query           cold(s)  warm_min(s)  warm_avg(s)  warm_max(s)
+-----           -------   ----------   ----------   ----------
+q1.1           0.002344     0.002272     0.002381     0.002531
+q1.2           0.002172     0.001834     0.001887     0.001970
+q1.3           0.001922     0.002033     0.002082     0.002107
+q1.4           0.002077     0.001760     0.001815     0.001889
+q1.5           0.001889     0.001794     0.001915     0.001999
+q1.6           0.002298     0.002078     0.002186     0.002248
+q2.1           0.002277     0.001806     0.002200     0.002603
+q2.2           0.001896     0.001915     0.002305     0.002865
+q2.3           0.002124     0.002024     0.002156     0.002258
+q2.4           0.001939     0.001929     0.002020     0.002078
+q2.5           0.002992     0.001975     0.002465     0.003381
+q2.6           0.001899     0.001966     0.002104     0.002350
+q3.1           0.002031     0.001846     0.001909     0.001969
+q3.4           0.002422     0.001942     0.001987     0.002041
+benchmark $ ./data/amplify_data.sh --host "$CH_HOST" --password "$CH_PASSWORD" \
+>     --target-logs1 100000000 --target-logs2 100000000 --target-logs3 100000000
+=== MgBench Data Amplification ===
+Host: clickhouse-shard1-replica1.logplatform.local:8123
+Targets: logs1=100000000, logs2=100000000, logs3=100000000
+
+=== Amplifying logs1 (target: 100000000) ===
+  Current: 22023859 rows
+  Iteration 1: doubling data...
+  Completed in 10s
+  Waiting for replication to complete...
+  Replication complete.
+  Current: 44047718 rows
+  Iteration 2: doubling data...
+  Completed in 12s
+  Waiting for replication to complete...
+  Replication complete.
+  Current: 88095436 rows
+  Iteration 3: doubling data...
+  Completed in 27s
+  Waiting for replication to complete...
+  Replication complete.
+  Current: 176190872 rows
+  Target reached.
+
+=== Amplifying logs2 (target: 100000000) ===
+  Current: 75748118 rows
+  Iteration 1: doubling data...
+  Completed in 11s
+  Waiting for replication to complete...
+  Replication complete.
+  Current: 151496236 rows
+  Target reached.
+
+=== Amplifying logs3 (target: 100000000) ===
+  Current: 108957039 rows
+  Target reached.
+
+=== Amplification Complete ===
+  logs1: 176190872 rows
+  logs2: 151496236 rows
+  logs3: 108957039 rows
+
+=== Storage Summary ===
+   ┌─table───────┬─total_rows─────┬─disk_size──┬─parts─┐
+1. │ logs1_local │ 176.19 million │ 6.34 GiB   │  1422 │
+2. │ logs2_local │ 151.50 million │ 2.14 GiB   │   219 │
+3. │ logs3_local │ 108.96 million │ 920.10 MiB │   140 │
+   └─────────────┴────────────────┴────────────┴───────┘
+
+Running OPTIMIZE TABLE FINAL (this may take a while)...
+clickhouse-shard2-replica2.logplatform.local    9000    0               3       2
+clickhouse-shard2-replica1.logplatform.local    9000    0               2       2
+clickhouse-shard2-replica2.logplatform.local    9000    0               3       0
+clickhouse-shard2-replica1.logplatform.local    9000    0               2       0
+clickhouse-shard2-replica2.logplatform.local    9000    0               3       0
+clickhouse-shard2-replica1.logplatform.local    9000    0               2       0
+clickhouse-shard1-replica1.logplatform.local    9000    0               1       0
+clickhouse-shard1-replica2.logplatform.local    9000    0               0       0
+clickhouse-shard1-replica2.logplatform.local    9000    0               1       0
+clickhouse-shard1-replica1.logplatform.local    9000    0               0       0
+clickhouse-shard1-replica1.logplatform.local    9000    0               1       0
+clickhouse-shard1-replica2.logplatform.local    9000    0               0       0
+OPTIMIZE complete.
+benchmark $ ./run_benchmark.sh --host "$CH_HOST" --password "$CH_PASSWORD" --tag amplified
+=== MgBench SELECT Benchmark ===
+Host: clickhouse-shard1-replica1.logplatform.local:8123
+Tag: amplified
+Output: /home/cloudshell-user/clickhouse-ecs-sample/benchmark/results/amplified_20260322_113956.tsv
+
+Loaded 14 queries
+
+--- q1.1 ---
+  cold 1: 0.002238s
+  warm 1: 0.002399s
+  warm 2: 0.002290s
+  warm 3: 0.002085s
+
+--- q1.2 ---
+  cold 1: 0.001874s
+  warm 1: 0.001974s
+  warm 2: 0.001797s
+  warm 3: 0.001803s
+
+--- q1.3 ---
+  cold 1: 0.002179s
+  warm 1: 0.002178s
+  warm 2: 0.002070s
+  warm 3: 0.001955s
+
+--- q1.4 ---
+  cold 1: 0.001913s
+  warm 1: 0.001889s
+  warm 2: 0.001692s
+  warm 3: 0.001693s
+
+--- q1.5 ---
+  cold 1: 0.001912s
+  warm 1: 0.002651s
+  warm 2: 0.001917s
+  warm 3: 0.001873s
+
+--- q1.6 ---
+  cold 1: 0.001927s
+  warm 1: 0.007015s
+  warm 2: 0.001980s
+  warm 3: 0.002419s
+
+--- q2.1 ---
+  cold 1: 0.001760s
+  warm 1: 0.001774s
+  warm 2: 0.001691s
+  warm 3: 0.001653s
+
+--- q2.2 ---
+  cold 1: 0.001837s
+  warm 1: 0.001721s
+  warm 2: 0.001633s
+  warm 3: 0.001705s
+
+--- q2.3 ---
+  cold 1: 0.002489s
+  warm 1: 0.001945s
+  warm 2: 0.002211s
+  warm 3: 0.001818s
+
+--- q2.4 ---
+  cold 1: 0.001844s
+  warm 1: 0.001777s
+  warm 2: 0.002611s
+  warm 3: 0.001826s
+
+--- q2.5 ---
+  cold 1: 0.002495s
+  warm 1: 0.001855s
+  warm 2: 0.001728s
+  warm 3: 0.001757s
+
+--- q2.6 ---
+  cold 1: 0.001775s
+  warm 1: 0.001805s
+  warm 2: 0.001837s
+  warm 3: 0.001724s
+
+--- q3.1 ---
+  cold 1: 0.001894s
+  warm 1: 0.001761s
+  warm 2: 0.001663s
+  warm 3: 0.001660s
+
+--- q3.4 ---
+  cold 1: 0.001705s
+  warm 1: 0.001731s
+  warm 2: 0.001667s
+  warm 3: 0.002104s
+
+=== Benchmark Complete ===
+Results saved to: /home/cloudshell-user/clickhouse-ecs-sample/benchmark/results/amplified_20260322_113956.tsv
+
+=== Summary ===
+query           cold(s)  warm_min(s)  warm_avg(s)  warm_max(s)
+-----           -------   ----------   ----------   ----------
+q1.1           0.002238     0.002085     0.002258     0.002399
+q1.2           0.001874     0.001797     0.001858     0.001974
+q1.3           0.002179     0.001955     0.002068     0.002178
+q1.4           0.001913     0.001692     0.001758     0.001889
+q1.5           0.001912     0.001873     0.002147     0.002651
+q1.6           0.001927     0.001980     0.003805     0.007015
+q2.1           0.001760     0.001653     0.001706     0.001774
+q2.2           0.001837     0.001633     0.001686     0.001721
+q2.3           0.002489     0.001818     0.001991     0.002211
+q2.4           0.001844     0.001777     0.002071     0.002611
+q2.5           0.002495     0.001728     0.001780     0.001855
+q2.6           0.001775     0.001724     0.001789     0.001837
+q3.1           0.001894     0.001660     0.001695     0.001761
+q3.4           0.001705     0.001667     0.001834     0.002104
+benchmark $ ./run_insert_benchmark.sh --host "$CH_HOST" --password "$CH_PASSWORD"
+=== MgBench INSERT Benchmark ===
+Host: clickhouse-shard1-replica1.logplatform.local:8123
+Output: /home/cloudshell-user/clickhouse-ecs-sample/benchmark/results/insert_20260322_114321.tsv
+
+=== A) Batch INSERT Benchmark ===
+clickhouse-shard2-replica2.logplatform.local    9000    0               3       2
+clickhouse-shard1-replica2.logplatform.local    9000    0               2       1
+clickhouse-shard2-replica1.logplatform.local    9000    0               1       1
+clickhouse-shard1-replica1.logplatform.local    9000    0               0       0
+clickhouse-shard1-replica2.logplatform.local    9000    0               3       0
+clickhouse-shard2-replica1.logplatform.local    9000    0               2       0
+clickhouse-shard2-replica2.logplatform.local    9000    0               1       0
+clickhouse-shard1-replica1.logplatform.local    9000    0               0       0
+
+--- Batch size: 1000000 ---
+clickhouse-shard2-replica2.logplatform.local    9000    0               3       3
+clickhouse-shard2-replica1.logplatform.local    9000    0               2       2
+clickhouse-shard1-replica2.logplatform.local    9000    0               1       0
+clickhouse-shard1-replica1.logplatform.local    9000    0               0       0
+  Rows: 1000000, Time: 0.683593s, Rate: 1462859 rows/sec
+
+--- Batch size: 10000000 ---
+clickhouse-shard2-replica2.logplatform.local    9000    0               3       3
+clickhouse-shard2-replica1.logplatform.local    9000    0               2       2
+clickhouse-shard1-replica2.logplatform.local    9000    0               1       0
+clickhouse-shard1-replica1.logplatform.local    9000    0               0       0
+  Rows: 10000000, Time: 1.737661s, Rate: 5754862 rows/sec
+
+--- Batch size: 100000000 ---
+clickhouse-shard2-replica2.logplatform.local    9000    0               3       3
+clickhouse-shard2-replica1.logplatform.local    9000    0               2       2
+clickhouse-shard1-replica1.logplatform.local    9000    0               1       0
+clickhouse-shard1-replica2.logplatform.local    9000    0               0       0
+  Rows: 100000000, Time: 12.837937s, Rate: 7789414 rows/sec
+clickhouse-shard2-replica2.logplatform.local    9000    0               3       2
+clickhouse-shard2-replica1.logplatform.local    9000    0               2       2
+clickhouse-shard1-replica1.logplatform.local    9000    0               1       0
+clickhouse-shard1-replica2.logplatform.local    9000    0               0       0
+
+=== B) HTTP Streaming INSERT Benchmark ===
+clickhouse-shard2-replica1.logplatform.local    9000    0               3       0
+clickhouse-shard1-replica2.logplatform.local    9000    0               2       0
+clickhouse-shard2-replica2.logplatform.local    9000    0               1       0
+clickhouse-shard1-replica1.logplatform.local    9000    0               0       0
+clickhouse-shard2-replica1.logplatform.local    9000    0               3       0
+clickhouse-shard1-replica1.logplatform.local    9000    0               2       0
+clickhouse-shard1-replica2.logplatform.local    9000    0               1       0
+clickhouse-shard2-replica2.logplatform.local    9000    0               0       0
+
+--- Stream size: 100000 ---
+clickhouse-shard2-replica2.logplatform.local    9000    0               3       3
+clickhouse-shard2-replica1.logplatform.local    9000    0               2       0
+clickhouse-shard1-replica1.logplatform.local    9000    0               1       0
+clickhouse-shard1-replica2.logplatform.local    9000    0               0       0
+  Rows: 100000, Time: 1s, Rate: 100000 rows/sec
+
+--- Stream size: 1000000 ---
+clickhouse-shard2-replica2.logplatform.local    9000    0               3       3
+clickhouse-shard2-replica1.logplatform.local    9000    0               2       2
+clickhouse-shard1-replica1.logplatform.local    9000    0               1       0
+clickhouse-shard1-replica2.logplatform.local    9000    0               0       0
+  Rows: 1000000, Time: 1s, Rate: 1000000 rows/sec
+
+--- Stream size: 10000000 ---
+clickhouse-shard2-replica2.logplatform.local    9000    0               3       3
+clickhouse-shard2-replica1.logplatform.local    9000    0               2       2
+clickhouse-shard1-replica2.logplatform.local    9000    0               1       0
+clickhouse-shard1-replica1.logplatform.local    9000    0               0       0
+  Rows: 10000000, Time: 9s, Rate: 1111111 rows/sec
+clickhouse-shard2-replica1.logplatform.local    9000    0               3       1
+clickhouse-shard2-replica2.logplatform.local    9000    0               2       1
+clickhouse-shard1-replica1.logplatform.local    9000    0               1       1
+clickhouse-shard1-replica2.logplatform.local    9000    0               0       0
+
+=== INSERT Benchmark Complete ===
+Results saved to: /home/cloudshell-user/clickhouse-ecs-sample/benchmark/results/insert_20260322_114321.tsv
+benchmark $ cat results/insert_20260322_114321.tsv 
+test_type       table   batch_size      elapsed_sec     rows_inserted   rows_per_sec
+batch_insert    logs2   1000000 0.683593        1000000 1462859
+batch_insert    logs2   10000000        1.737661        10000000        5754862
+batch_insert    logs2   100000000       12.837937       100000000       7789414
+http_stream     logs2   100000  1       100000  100000
+http_stream     logs2   1000000 1       1000000 1000000
+http_stream     logs2   10000000        9       10000000        1111111
+benchmark $ ./data/populate_extended.sh --host "$CH_HOST" --password "$CH_PASSWORD"
+=== Populating Extended Tables ===
+Host: clickhouse-shard1-replica1.logplatform.local:8123
+
+Source logs2_local: 151496236 rows
+
+--- Populating logs2_ext_noidx_local ---
+  Loaded: 151496236 rows in 51s
+
+--- Populating logs2_ext_tokenbf_local ---
+  Loaded: 151496236 rows in 102s
+
+--- Populating logs2_ext_ngrambf_local ---
+  Loaded: 151496236 rows in 287s
+
+=== Verification ===
+   ┌─table───────────────────┬─total_rows─────┬─disk_size─┐
+1. │ logs2_ext_ngrambf_local │ 151.50 million │ 9.94 GiB  │
+2. │ logs2_ext_noidx_local   │ 151.50 million │ 9.39 GiB  │
+3. │ logs2_ext_tokenbf_local │ 151.50 million │ 9.91 GiB  │
+   └─────────────────────────┴────────────────┴───────────┘
+
+=== Sample raw_log entries ===
+2012-01-01 00:00:03 [INFO] request_id=D3A2065EEE9F2E1C service=api-server method=PATCH path=/courses/cs100/finalprojects/adventure/javadocs_/index.html?index-filesindex-16.html status=200 size=705 client=149.60.38.76 duration_ms=1371 error=null
+2012-01-01 00:00:17 [INFO] request_id=68377D2730B0239A service=auth-service method=DELETE path=/degrees/masters/ status=200 size=3233 client=252.202.20.160 duration_ms=2418 error=null
+2012-01-01 00:00:17 [INFO] request_id=501745BE54B838A6 service=api-server method=POST path=/degrees/masters/masters.gif status=200 size=7921 client=252.202.20.160 duration_ms=1166 error=null
+
+Done.
+
+---
+
+S3キャッシュ (NVMe 800GB) を可用性の観点で評価してください
+
+---
+
+/git-create-branch-commit-pr
+
+---
+
+【🚨 要修正・High】defaultユーザーのaccess_management過剰権限（users.xml）
+xml<!-- 現状: 全権限 -->
+<access_management>1</access_management>
+access_management>1 はユーザー作成・権限変更・DDL実行などすべての管理操作を許可します。アプリケーションがこのユーザーで接続している場合、SQLインジェクション時の影響範囲が最大になります。
+
+---
+
+admin ユーザーのパスワードは別でSecrets Manager で管理します。default ユーザーの権限範囲はDDL（CREATE TABLE等）も許可するようにします。
+
+---
+
+readmeに記載が不足している

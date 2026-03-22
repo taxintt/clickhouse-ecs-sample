@@ -1,0 +1,37 @@
+{
+  "cli_version": "0.5.0",
+  "checkpoint_id": "d820536fd5e4",
+  "session_id": "d8fe71a1-90fd-4afc-a19d-5f4d20a49e4e",
+  "strategy": "manual-commit",
+  "created_at": "2026-03-22T13:19:36.935486Z",
+  "branch": "fix/separate-admin-user-from-default",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "README.md",
+    "infra/clickhouse/config/users.xml",
+    "infra/clickhouse/entrypoint-wrapper.sh",
+    "infra/terraform/ecs_clickhouse.tf",
+    "infra/terraform/variables.tf"
+  ],
+  "agent": "Claude Code",
+  "turn_id": "2e037718638e",
+  "token_usage": {
+    "input_tokens": 3668,
+    "cache_creation_tokens": 654760,
+    "cache_read_tokens": 19087790,
+    "output_tokens": 85908,
+    "api_call_count": 170
+  },
+  "session_metrics": {
+    "turn_count": 5
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-03-22T13:19:36.430685Z",
+    "agent_lines": 29,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 29,
+    "agent_percentage": 100
+  }
+}
