@@ -11,9 +11,15 @@ if [ -z "${CH_READONLY_PASSWORD:-}" ]; then
   exit 1
 fi
 
-# Escape a value for use as sed replacement text and XML content
+# Escape a value for XML content, then for sed replacement text
 escape_for_sed_xml() {
-  printf '%s' "$1" | sed -e 's/[&/\]/\\&/g' | sed -e 's/</\&lt;/g; s/>/\&gt;/g'
+  printf '%s' "$1" \
+    | sed -e 's/&/\&amp;/g' \
+    | sed -e 's/</\&lt;/g' \
+    | sed -e 's/>/\&gt;/g' \
+    | sed -e "s/'/\&apos;/g" \
+    | sed -e 's/"/\&quot;/g' \
+    | sed -e 's/[\/&]/\\&/g'
 }
 
 # Replace placeholders in users.d/custom.xml with environment variables
