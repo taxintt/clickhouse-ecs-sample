@@ -1,5 +1,5 @@
 locals {
-  ecr_repositories = ["clickhouse", "clickhouse-keeper", "fluent-bit"]
+  ecr_repositories = ["clickhouse", "clickhouse-keeper"]
 }
 
 resource "aws_ecr_repository" "repos" {

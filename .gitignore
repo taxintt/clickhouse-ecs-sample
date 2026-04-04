@@ -45,4 +45,6 @@ terraform.rc
 
 # Ignore claude code setting files
 .claude/
+.agents/
 .mcp.json
+skills-lock.json

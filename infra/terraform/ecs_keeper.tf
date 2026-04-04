@@ -36,6 +36,11 @@ resource "aws_ecs_task_definition" "keeper" {
   execution_role_arn       = aws_iam_role.ecs_task_execution.arn
   task_role_arn            = aws_iam_role.ecs_task_keeper.arn
 
+  volume {
+    name      = "keeper-data"
+    host_path = "/mnt/keeper-data"
+  }
+
   container_definitions = jsonencode([{
     name      = "keeper"
     image     = "${aws_ecr_repository.repos["clickhouse-keeper"].repository_url}:latest"
@@ -44,6 +49,14 @@ resource "aws_ecs_task_definition" "keeper" {
     portMappings = [
       { containerPort = 9181, protocol = "tcp" },
       { containerPort = 9234, protocol = "tcp" },
+    ]
+
+    mountPoints = [
+      {
+        sourceVolume  = "keeper-data"
+        containerPath = "/var/lib/clickhouse/coordination"
+        readOnly      = false
+      },
     ]
 
     environment = [

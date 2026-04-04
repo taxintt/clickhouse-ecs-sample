@@ -17,10 +17,12 @@
 
         <coordination_settings>
             <operation_timeout_ms>10000</operation_timeout_ms>
-            <min_session_timeout_ms>10000</min_session_timeout_ms>
             <session_timeout_ms>100000</session_timeout_ms>
             <raft_logs_level>information</raft_logs_level>
         </coordination_settings>
+
+        <snapshots_to_keep>3</snapshots_to_keep>
+        <stale_log_gap>10000</stale_log_gap>
 
         <hostname_checks_enabled>0</hostname_checks_enabled>
 

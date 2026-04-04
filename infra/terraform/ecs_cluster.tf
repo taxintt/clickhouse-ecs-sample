@@ -117,6 +117,20 @@ resource "aws_launch_template" "keeper" {
 
   vpc_security_group_ids = [aws_security_group.keeper.id]
 
+  # EBS volume for Keeper coordination logs and snapshots
+  block_device_mappings {
+    device_name = "/dev/xvdf"
+
+    ebs {
+      volume_size           = 20
+      volume_type           = "gp3"
+      iops                  = 3000
+      throughput            = 125
+      encrypted             = true
+      delete_on_termination = false
+    }
+  }
+
   user_data = base64encode(templatefile("${path.module}/templates/keeper_user_data.sh", {
     cluster_name   = aws_ecs_cluster.main.name
     node_attribute = "keeper_node"
