@@ -1,0 +1,36 @@
+{
+  "cli_version": "0.5.0",
+  "checkpoint_id": "381ce99c2b38",
+  "session_id": "723ea1bc-12cd-4f11-a446-6c6846403022",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-04T11:04:35.970947Z",
+  "branch": "fix/harden-clickhouse-config",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "infra/terraform/ecr.tf"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-6[1m]",
+  "turn_id": "aa2f108c9d0b",
+  "checkpoint_transcript_start": 190,
+  "transcript_lines_at_start": 190,
+  "token_usage": {
+    "input_tokens": 19,
+    "cache_creation_tokens": 6153,
+    "cache_read_tokens": 854780,
+    "output_tokens": 2726,
+    "api_call_count": 12
+  },
+  "session_metrics": {
+    "turn_count": 8
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-04T11:04:35.833046Z",
+    "agent_lines": 1,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 1,
+    "agent_percentage": 100
+  }
+}
