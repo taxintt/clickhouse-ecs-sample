@@ -22,7 +22,7 @@ ENGINE = ReplicatedMergeTree(
     '/clickhouse/tables/{shard}/logs_local',
     '{replica}'
 )
-PARTITION BY (tenant_id, toYYYYMM(timestamp))
+PARTITION BY toYYYYMM(timestamp)
 ORDER BY (tenant_id, service, severity, timestamp)
 TTL toDateTime(timestamp) + INTERVAL 30 DAY DELETE
 SETTINGS

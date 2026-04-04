@@ -28,7 +28,7 @@ USERS_FILE="/etc/clickhouse-server/users.d/custom.xml"
 if [ -f "$USERS_FILE" ]; then
   ESCAPED_DEFAULT_PW=$(escape_for_sed_xml "$CH_DEFAULT_PASSWORD")
   ESCAPED_READONLY_PW=$(escape_for_sed_xml "$CH_READONLY_PASSWORD")
-  ESCAPED_NETWORKS=$(escape_for_sed_xml "${CH_ALLOWED_NETWORKS:-::/0}")
+  ESCAPED_NETWORKS=$(escape_for_sed_xml "${CH_ALLOWED_NETWORKS:-10.0.0.0/8}")
   sed -i "s|PLACEHOLDER_DEFAULT_PASSWORD|${ESCAPED_DEFAULT_PW}|g" "$USERS_FILE"
   sed -i "s|PLACEHOLDER_READONLY_PASSWORD|${ESCAPED_READONLY_PW}|g" "$USERS_FILE"
   sed -i "s|PLACEHOLDER_ALLOWED_NETWORKS|${ESCAPED_NETWORKS}|g" "$USERS_FILE"
