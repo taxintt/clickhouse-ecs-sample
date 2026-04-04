@@ -1,0 +1,13 @@
+https://clickhouse.com/docs/jp/operations/tips#network、https://clickhouse.com/blog/common-getting-started-issues-with-clickhouse を利用して現状の設定を評価してください。
+
+---
+
+https://clickhouse.com/docs/jp/operations/tips、https://clickhouse.com/blog/common-getting-started-issues-with-clickhouse を利用して現状の設定を評価してください。ネットワークに限る必要はありません。
+
+---
+
+CRITICAL, HIGH, MEDIUMの6,7を修正してください
+
+---
+
+/git-create-branch-commit-pr

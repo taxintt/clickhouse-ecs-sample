@@ -1,0 +1,28 @@
+{
+  "cli_version": "0.5.0",
+  "checkpoint_id": "75b89d40fb19",
+  "strategy": "manual-commit",
+  "branch": "fix/harden-clickhouse-config",
+  "checkpoints_count": 4,
+  "files_touched": [
+    "infra/clickhouse/config/keeper_config.xml",
+    "infra/terraform/ecs_cluster.tf",
+    "infra/terraform/ecs_keeper.tf",
+    "infra/terraform/templates/keeper_user_data.sh"
+  ],
+  "sessions": [
+    {
+      "metadata": "/75/b89d40fb19/0/metadata.json",
+      "transcript": "/75/b89d40fb19/0/full.jsonl",
+      "content_hash": "/75/b89d40fb19/0/content_hash.txt",
+      "prompt": "/75/b89d40fb19/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 49,
+    "cache_creation_tokens": 165485,
+    "cache_read_tokens": 1512182,
+    "output_tokens": 19336,
+    "api_call_count": 33
+  }
+}
