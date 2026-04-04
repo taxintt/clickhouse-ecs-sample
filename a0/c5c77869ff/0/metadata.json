@@ -1,0 +1,36 @@
+{
+  "cli_version": "0.5.0",
+  "checkpoint_id": "a0c5c77869ff",
+  "session_id": "723ea1bc-12cd-4f11-a446-6c6846403022",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-04T11:49:11.387758Z",
+  "branch": "feat/add-s3-gateway-endpoint",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "infra/terraform/networking.tf"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-6[1m]",
+  "turn_id": "4470765bb313",
+  "checkpoint_transcript_start": 236,
+  "transcript_lines_at_start": 236,
+  "token_usage": {
+    "input_tokens": 61,
+    "cache_creation_tokens": 19647,
+    "cache_read_tokens": 2579798,
+    "output_tokens": 5567,
+    "api_call_count": 31
+  },
+  "session_metrics": {
+    "turn_count": 23
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-04T11:49:11.193256Z",
+    "agent_lines": 22,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 22,
+    "agent_percentage": 100
+  }
+}
