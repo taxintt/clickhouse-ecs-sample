@@ -1,0 +1,38 @@
+{
+  "cli_version": "0.5.0",
+  "checkpoint_id": "9fabb9a22eaa",
+  "session_id": "723ea1bc-12cd-4f11-a446-6c6846403022",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-05T00:44:36.874789Z",
+  "branch": "fix/keeper-ebs-persistence",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "infra/terraform/ecs_cluster.tf",
+    "infra/terraform/iam.tf",
+    "infra/terraform/templates/keeper_user_data.sh"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-6[1m]",
+  "turn_id": "4c507a680cee",
+  "checkpoint_transcript_start": 350,
+  "transcript_lines_at_start": 350,
+  "token_usage": {
+    "input_tokens": 44,
+    "cache_creation_tokens": 119023,
+    "cache_read_tokens": 3024386,
+    "output_tokens": 11450,
+    "api_call_count": 30
+  },
+  "session_metrics": {
+    "turn_count": 30
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-05T00:44:36.569828Z",
+    "agent_lines": 98,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 98,
+    "agent_percentage": 100
+  }
+}
