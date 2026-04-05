@@ -1,10 +1,38 @@
 #!/bin/bash
 set -euo pipefail
 
-# Format and mount EBS volume for Keeper data persistence
+# Attach and mount the persistent EBS volume for Keeper data
+VOLUME_ID="${ebs_volume_id}"
 DEVICE="/dev/xvdf"
 MOUNT_POINT="/mnt/keeper-data"
+REGION=$(ec2-metadata --availability-zone | awk '{print $2}' | sed 's/.$//')
+INSTANCE_ID=$(ec2-metadata --instance-id | awk '{print $2}')
 
+# Wait for the volume to be available (may still be detaching from old instance)
+for i in $(seq 1 60); do
+  STATE=$(aws ec2 describe-volumes --volume-ids "$VOLUME_ID" --region "$REGION" \
+    --query 'Volumes[0].State' --output text)
+  if [ "$STATE" = "available" ]; then
+    break
+  fi
+  echo "Waiting for volume $VOLUME_ID to become available (state: $STATE)... ($i/60)"
+  sleep 5
+done
+
+# Attach the volume
+aws ec2 attach-volume --volume-id "$VOLUME_ID" --instance-id "$INSTANCE_ID" \
+  --device "$DEVICE" --region "$REGION"
+
+# Wait for the device to appear
+for i in $(seq 1 30); do
+  if [ -b "$DEVICE" ]; then
+    break
+  fi
+  echo "Waiting for device $DEVICE... ($i/30)"
+  sleep 2
+done
+
+# Format only if not already formatted
 if ! blkid "$DEVICE" &>/dev/null; then
   mkfs.ext4 -L keeper-data "$DEVICE"
 fi

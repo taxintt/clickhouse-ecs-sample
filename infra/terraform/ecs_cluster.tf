@@ -72,12 +72,12 @@ resource "aws_launch_template" "clickhouse" {
 resource "aws_autoscaling_group" "clickhouse" {
   for_each = local.clickhouse_nodes
 
-  name                    = "${local.name_prefix}-ch-${each.key}"
-  min_size                = 1
-  max_size                = 1
-  desired_capacity        = 1
-  protect_from_scale_in   = true
-  vpc_zone_identifier     = [local.private_subnet_ids[each.value.az_index % length(local.private_subnet_ids)]]
+  name                  = "${local.name_prefix}-ch-${each.key}"
+  min_size              = 1
+  max_size              = 1
+  desired_capacity      = 1
+  protect_from_scale_in = true
+  vpc_zone_identifier   = [local.private_subnet_ids[each.value.az_index % length(local.private_subnet_ids)]]
 
   launch_template {
     id      = aws_launch_template.clickhouse[each.key].id
@@ -117,24 +117,11 @@ resource "aws_launch_template" "keeper" {
 
   vpc_security_group_ids = [aws_security_group.keeper.id]
 
-  # EBS volume for Keeper coordination logs and snapshots
-  block_device_mappings {
-    device_name = "/dev/xvdf"
-
-    ebs {
-      volume_size           = 20
-      volume_type           = "gp3"
-      iops                  = 3000
-      throughput            = 125
-      encrypted             = true
-      delete_on_termination = false
-    }
-  }
-
   user_data = base64encode(templatefile("${path.module}/templates/keeper_user_data.sh", {
     cluster_name   = aws_ecs_cluster.main.name
     node_attribute = "keeper_node"
     node_value     = each.key
+    ebs_volume_id  = aws_ebs_volume.keeper[each.key].id
   }))
 
   tag_specifications {
@@ -148,15 +135,33 @@ resource "aws_launch_template" "keeper" {
   lifecycle { create_before_destroy = true }
 }
 
+resource "aws_ebs_volume" "keeper" {
+  for_each = local.keeper_nodes
+
+  availability_zone = var.availability_zones[index(keys(local.keeper_nodes), each.key) % length(var.availability_zones)]
+  size              = 20
+  type              = "gp3"
+  iops              = 3000
+  throughput        = 125
+  encrypted         = true
+
+  tags = merge(local.common_tags, {
+    Name       = "${local.name_prefix}-keeper-${each.key}-data"
+    KeeperNode = each.key
+  })
+
+  lifecycle { prevent_destroy = true }
+}
+
 resource "aws_autoscaling_group" "keeper" {
   for_each = local.keeper_nodes
 
-  name                    = "${local.name_prefix}-keeper-${each.key}"
-  min_size                = 1
-  max_size                = 1
-  desired_capacity        = 1
-  protect_from_scale_in   = true
-  vpc_zone_identifier     = [local.private_subnet_ids[index(keys(local.keeper_nodes), each.key) % length(local.private_subnet_ids)]]
+  name                  = "${local.name_prefix}-keeper-${each.key}"
+  min_size              = 1
+  max_size              = 1
+  desired_capacity      = 1
+  protect_from_scale_in = true
+  vpc_zone_identifier   = [local.private_subnet_ids[index(keys(local.keeper_nodes), each.key) % length(local.private_subnet_ids)]]
 
   launch_template {
     id      = aws_launch_template.keeper[each.key].id

@@ -37,6 +37,44 @@ resource "aws_iam_role_policy_attachment" "ec2_cloudwatch_agent" {
   policy_arn = "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
 }
 
+# EBS attach/describe for Keeper data volume reattachment
+resource "aws_iam_policy" "ec2_ebs_attach" {
+  name   = "${local.name_prefix}-ec2-ebs-attach"
+  policy = data.aws_iam_policy_document.ec2_ebs_attach.json
+}
+
+data "aws_iam_policy_document" "ec2_ebs_attach" {
+  statement {
+    sid = "EBSDescribeVolumes"
+    actions = [
+      "ec2:DescribeVolumes",
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    sid = "EBSVolumeAttach"
+    actions = [
+      "ec2:AttachVolume",
+      "ec2:DetachVolume",
+    ]
+    resources = [
+      "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:volume/*",
+      "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:instance/*",
+    ]
+    condition {
+      test     = "StringEquals"
+      variable = "aws:ResourceTag/Project"
+      values   = [var.project]
+    }
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "ec2_ebs_attach" {
+  role       = aws_iam_role.ec2_instance.name
+  policy_arn = aws_iam_policy.ec2_ebs_attach.arn
+}
+
 ################################################################################
 # ECS Task Role (S3, CloudWatch, SSM)
 # Policies are independent resources for EKS IRSA migration
