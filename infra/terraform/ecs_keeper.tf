@@ -43,7 +43,7 @@ resource "aws_ecs_task_definition" "keeper" {
 
   container_definitions = jsonencode([{
     name      = "keeper"
-    image     = "${aws_ecr_repository.repos["clickhouse-keeper"].repository_url}:latest"
+    image     = "${aws_ecr_repository.repos["clickhouse-keeper"].repository_url}:${var.keeper_image_tag}"
     essential = true
 
     portMappings = [

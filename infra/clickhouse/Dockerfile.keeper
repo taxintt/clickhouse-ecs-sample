@@ -1,4 +1,5 @@
-FROM clickhouse/clickhouse-keeper:24.12-alpine
+ARG CLICKHOUSE_VERSION=24.12-alpine
+FROM clickhouse/clickhouse-keeper:${CLICKHOUSE_VERSION}
 
 # Copy Keeper configuration
 COPY config/keeper_config.xml /etc/clickhouse-keeper/keeper_config.xml
