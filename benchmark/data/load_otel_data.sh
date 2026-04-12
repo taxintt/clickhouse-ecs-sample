@@ -76,8 +76,8 @@ while true; do
         INSERT INTO otel_logs_local
         SELECT
             now64(9) - toIntervalSecond(rand() % 86400 + number % 86400) AS Timestamp,
-            lower(hex(randomPrintableASCII(16))) AS TraceId,
-            lower(hex(randomPrintableASCII(8))) AS SpanId,
+            lower(concat(hex(reinterpretAsFixedString(rand64())), hex(reinterpretAsFixedString(rand64())))) AS TraceId,
+            lower(hex(reinterpretAsFixedString(rand64()))) AS SpanId,
             toUInt32(randBernoulli(0.1)) AS TraceFlags,
             arrayElement(
                 ['TRACE','DEBUG','INFO','WARN','ERROR','FATAL'],
@@ -130,7 +130,7 @@ while true; do
                 'thread.id', toString(rand() % 64)
             ) AS LogAttributes
         FROM numbers(${insert_count})
-    " "max_execution_time=3600&max_insert_threads=4&max_memory_usage=40000000000"
+    " "max_execution_time=3600&max_insert_threads=4&max_memory_usage=10000000000"
 
     end_time=$(date +%s)
     echo "  Completed in $((end_time - start_time))s"
