@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.5.0",
+  "checkpoint_id": "fce50c92dd06",
+  "strategy": "manual-commit",
+  "branch": "feature/add-otel-logs-storage-benchmark",
+  "checkpoints_count": 6,
+  "files_touched": [
+    "benchmark/data/load_otel_data.sh",
+    "benchmark/measure_s3_storage.sh",
+    "benchmark/schema/otel_logs_tables.sql"
+  ],
+  "sessions": [
+    {
+      "metadata": "/fc/e50c92dd06/0/metadata.json",
+      "transcript": "/fc/e50c92dd06/0/full.jsonl",
+      "content_hash": "/fc/e50c92dd06/0/content_hash.txt",
+      "prompt": "/fc/e50c92dd06/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 1944,
+    "cache_creation_tokens": 151805,
+    "cache_read_tokens": 2684927,
+    "output_tokens": 19376,
+    "api_call_count": 48
+  }
+}

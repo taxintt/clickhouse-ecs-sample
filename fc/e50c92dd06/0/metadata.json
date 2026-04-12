@@ -1,0 +1,35 @@
+{
+  "cli_version": "0.5.0",
+  "checkpoint_id": "fce50c92dd06",
+  "session_id": "6d130b11-fdec-417d-9ebe-c2127d24dc95",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-12T01:33:01.147349Z",
+  "branch": "feature/add-otel-logs-storage-benchmark",
+  "checkpoints_count": 6,
+  "files_touched": [
+    "benchmark/data/load_otel_data.sh",
+    "benchmark/measure_s3_storage.sh",
+    "benchmark/schema/otel_logs_tables.sql"
+  ],
+  "agent": "Claude Code",
+  "turn_id": "f84712b61029",
+  "token_usage": {
+    "input_tokens": 1944,
+    "cache_creation_tokens": 151805,
+    "cache_read_tokens": 2684927,
+    "output_tokens": 19376,
+    "api_call_count": 48
+  },
+  "session_metrics": {
+    "turn_count": 6
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-12T01:33:00.901049Z",
+    "agent_lines": 446,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 2,
+    "total_committed": 446,
+    "agent_percentage": 100
+  }
+}
