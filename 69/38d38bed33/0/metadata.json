@@ -1,0 +1,35 @@
+{
+  "cli_version": "0.5.0",
+  "checkpoint_id": "6938d38bed33",
+  "session_id": "6d130b11-fdec-417d-9ebe-c2127d24dc95",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-19T03:54:52.916205Z",
+  "branch": "feature/otel-benchmark-execution-prep",
+  "checkpoints_count": 12,
+  "files_touched": [
+    "infra/terraform/ecs_cluster.tf",
+    "infra/terraform/networking.tf",
+    "infra/terraform/variables.tf"
+  ],
+  "agent": "Claude Code",
+  "turn_id": "71d167885725",
+  "token_usage": {
+    "input_tokens": 2106,
+    "cache_creation_tokens": 465165,
+    "cache_read_tokens": 10830366,
+    "output_tokens": 46908,
+    "api_call_count": 120
+  },
+  "session_metrics": {
+    "turn_count": 51
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-19T03:54:52.591533Z",
+    "agent_lines": 17,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 17,
+    "agent_percentage": 100
+  }
+}
