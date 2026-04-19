@@ -35,7 +35,8 @@ variable "availability_zones" {
 variable "clickhouse_instance_type" {
   description = "EC2 instance type for ClickHouse nodes"
   type        = string
-  default     = "r6gd.4xlarge"
+  # default     = "r6gd.4xlarge"
+  default     = "r6gd.xlarge"
 }
 
 variable "keeper_instance_type" {
@@ -47,13 +48,15 @@ variable "keeper_instance_type" {
 variable "clickhouse_cpu" {
   description = "CPU units for ClickHouse task"
   type        = number
-  default     = 15360
+  # default     = 15360
+  default     = 3072
 }
 
 variable "clickhouse_memory" {
   description = "Memory (MiB) for ClickHouse task"
   type        = number
-  default     = 122880
+  # default     = 122880
+  default     = 28672
 }
 
 variable "keeper_cpu" {
