@@ -204,3 +204,55 @@ cd benchmark
 curl -s "http://${CH_HOST}:8123" --user "default:${CH_PASSWORD}" \
   -d "DROP DATABASE IF EXISTS mgbench ON CLUSTER 'logs_cluster'"
 ```
+
+# otel_logs
+
+## Phase 1: CloudShell VPC環境でリポジトリ取得
+```bash
+git clone https://github.com/taxintt/clickhouse-ecs-sample.git
+```
+
+## Phase 2: 環境変数設定
+```bash
+export CH_HOST="clickhouse-shard1-replica1.logplatform.local"
+export CH_PASSWORD="<clickhouse default password>"
+```
+
+## Phase 3: テーブル作成
+```bash
+grep -v '^--' schema/otel_logs_tables.sql | grep -v '^$' | \
+  tr '\n' ' ' | sed 's/;/;\n/g' | while IFS= read -r stmt; do
+    stmt=$(echo "$stmt" | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')
+    if [ -n "$stmt" ]; then
+      echo ">>> ${stmt:0:70}..."
+      curl -s "http://${CH_HOST}:8123" --user "default:${CH_PASSWORD}" -d "${stmt}"
+    fi
+  done
+```
+
+## Phase 4: テーブル確認
+```bash
+curl -s "http://${CH_HOST}:8123" --user "default:${CH_PASSWORD}" \
+  -d "SHOW TABLES FROM otel FORMAT PrettyCompact"
+```
+
+## Phase 5: データ投入（1000万行）
+```bash
+./data/load_otel_data.sh --host "$CH_HOST" --password "$CH_PASSWORD" --rows 10000000
+```
+
+## Phase 6: 測定
+```bash
+./measure_s3_storage.sh --host "$CH_HOST" --password "$CH_PASSWORD" --tag baseline
+```
+
+## Phase 7: AWS CLI側クロスチェック（S3バケット名はterraform outputで確認）
+```bash
+aws s3 ls --summarize --recursive s3://<bucket>/clickhouse/
+```
+
+## Phase 8: クリーンアップ
+```bash
+curl -s "http://${CH_HOST}:8123" --user "default:${CH_PASSWORD}" \
+  -d "DROP DATABASE IF EXISTS otel ON CLUSTER 'logs_cluster'"
+```

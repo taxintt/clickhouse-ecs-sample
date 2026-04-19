@@ -48,3 +48,6 @@ terraform.rc
 .agents/
 .mcp.json
 skills-lock.json
+
+# Ignore benchmark results
+benchmark/results/
