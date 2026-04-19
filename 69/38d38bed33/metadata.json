@@ -3,7 +3,7 @@
   "checkpoint_id": "6938d38bed33",
   "strategy": "manual-commit",
   "branch": "feature/otel-benchmark-execution-prep",
-  "checkpoints_count": 12,
+  "checkpoints_count": 21,
   "files_touched": [
     "infra/terraform/ecs_cluster.tf",
     "infra/terraform/networking.tf",
@@ -15,13 +15,19 @@
       "transcript": "/69/38d38bed33/0/full.jsonl",
       "content_hash": "/69/38d38bed33/0/content_hash.txt",
       "prompt": "/69/38d38bed33/0/prompt.txt"
+    },
+    {
+      "metadata": "/69/38d38bed33/1/metadata.json",
+      "transcript": "/69/38d38bed33/1/full.jsonl",
+      "content_hash": "/69/38d38bed33/1/content_hash.txt",
+      "prompt": "/69/38d38bed33/1/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 2106,
-    "cache_creation_tokens": 465165,
-    "cache_read_tokens": 10830366,
-    "output_tokens": 46908,
-    "api_call_count": 120
+    "input_tokens": 9640,
+    "cache_creation_tokens": 1293215,
+    "cache_read_tokens": 18940216,
+    "output_tokens": 71506,
+    "api_call_count": 178
   }
 }
