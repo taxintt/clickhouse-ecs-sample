@@ -150,7 +150,7 @@ resource "aws_ebs_volume" "keeper" {
     KeeperNode = each.key
   })
 
-  lifecycle { prevent_destroy = true }
+  # lifecycle { prevent_destroy = true }
 }
 
 resource "aws_autoscaling_group" "keeper" {

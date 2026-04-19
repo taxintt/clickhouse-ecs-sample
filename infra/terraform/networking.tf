@@ -157,6 +157,16 @@ resource "aws_vpc_security_group_ingress_rule" "keeper_self" {
   referenced_security_group_id = aws_security_group.keeper.id
 }
 
+# Allow CloudShell to access Keeper client port
+resource "aws_vpc_security_group_ingress_rule" "keeper_from_cloudshell" {
+  security_group_id            = aws_security_group.keeper.id
+  description                  = "Keeper client from CloudShell"
+  from_port                    = 9181
+  to_port                      = 9181
+  ip_protocol                  = "tcp"
+  referenced_security_group_id = aws_security_group.cloudshell.id
+}
+
 resource "aws_vpc_security_group_ingress_rule" "keeper_raft" {
   security_group_id            = aws_security_group.keeper.id
   description                  = "Keeper Raft consensus"
