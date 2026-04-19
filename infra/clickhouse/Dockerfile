@@ -1,4 +1,5 @@
-FROM clickhouse/clickhouse-server:24.12-alpine
+ARG CLICKHOUSE_VERSION=24.12-alpine
+FROM clickhouse/clickhouse-server:${CLICKHOUSE_VERSION}
 
 # Remove docker_related_config to prevent listen_host conflicts
 RUN rm -f /etc/clickhouse-server/config.d/docker_related_config.xml

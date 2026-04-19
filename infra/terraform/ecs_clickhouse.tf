@@ -102,7 +102,7 @@ resource "aws_ecs_task_definition" "clickhouse" {
 
   container_definitions = jsonencode([{
     name      = "clickhouse"
-    image     = "${aws_ecr_repository.repos["clickhouse"].repository_url}:latest"
+    image     = "${aws_ecr_repository.repos["clickhouse"].repository_url}:${var.clickhouse_image_tag}"
     essential = true
 
     portMappings = [

@@ -71,6 +71,18 @@ variable "keeper_memory" {
   default     = 1024
 }
 
+variable "clickhouse_image_tag" {
+  description = "Image tag for ClickHouse server ECR repository"
+  type        = string
+  default     = "24.11-alpine"
+}
+
+variable "keeper_image_tag" {
+  description = "Image tag for ClickHouse Keeper ECR repository"
+  type        = string
+  default     = "24.11-alpine"
+}
+
 variable "kinesis_shard_count" {
   description = "Number of shards for the Kinesis stream"
   type        = number
