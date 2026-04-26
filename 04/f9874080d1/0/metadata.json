@@ -1,0 +1,41 @@
+{
+  "cli_version": "0.5.0",
+  "checkpoint_id": "04f9874080d1",
+  "session_id": "723ea1bc-12cd-4f11-a446-6c6846403022",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-26T01:32:40.996078Z",
+  "branch": "feature/add-instance-refresh-and-rebalance-scripts",
+  "checkpoints_count": 5,
+  "files_touched": [
+    "infra/scripts/README.md",
+    "infra/scripts/instance-refresh.sh",
+    "infra/scripts/lib/asg-lib.sh",
+    "infra/scripts/lib/ch-cluster-lib.sh",
+    "infra/scripts/lib/common.sh",
+    "infra/scripts/lib/keeper-lib.sh",
+    "infra/scripts/rebalance-shard.sh",
+    "infra/scripts/rolling-update.sh"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-7[1m]",
+  "turn_id": "0cb1d7f94040",
+  "token_usage": {
+    "input_tokens": 7892,
+    "cache_creation_tokens": 2224990,
+    "cache_read_tokens": 30787283,
+    "output_tokens": 167325,
+    "api_call_count": 285
+  },
+  "session_metrics": {
+    "turn_count": 65
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-04-26T01:32:40.114879Z",
+    "agent_lines": 2192,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 2192,
+    "agent_percentage": 100
+  }
+}
