@@ -55,6 +55,7 @@ resource "aws_launch_template" "clickhouse" {
     cluster_name   = aws_ecs_cluster.main.name
     node_attribute = "clickhouse_node"
     node_value     = each.key
+    ebs_volume_id  = aws_ebs_volume.clickhouse[each.key].id
   }))
 
   tag_specifications {
@@ -67,6 +68,24 @@ resource "aws_launch_template" "clickhouse" {
   }
 
   lifecycle { create_before_destroy = true }
+}
+
+resource "aws_ebs_volume" "clickhouse" {
+  for_each = local.clickhouse_nodes
+
+  availability_zone = var.availability_zones[each.value.az_index % length(var.availability_zones)]
+  size              = 100
+  type              = "gp3"
+  iops              = 3000
+  throughput        = 125
+  encrypted         = true
+
+  tags = merge(local.common_tags, {
+    Name           = "${local.name_prefix}-ch-${each.key}-data"
+    ClickHouseNode = each.key
+  })
+
+  lifecycle { prevent_destroy = true }
 }
 
 resource "aws_autoscaling_group" "clickhouse" {

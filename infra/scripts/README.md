@@ -2,6 +2,27 @@
 
 ClickHouse on ECS の運用タスクを自動化するためのシェルスクリプト群。
 
+## アーキテクチャ前提（重要）
+
+ClickHouse 各レプリカノードは以下の二段ストレージ構成。`instance-refresh.sh` がメタデータを失わずに動作する前提。
+
+```
+host (EC2):
+  /mnt/clickhouse-data/         (EBS gp3 100GB, ext4)   ← ノードごと永続
+    ├── metadata/, store/, ...                          ← テーブル定義・パーツ参照
+    └── s3cache/                (NVMe instance store)   ← S3 disk cache（揮発）
+
+container (ClickHouse):
+  /var/lib/clickhouse/                                  ← from /mnt/clickhouse-data
+    └── s3cache/                                        ← NVMe が透過的に見える
+```
+
+ECS task definition で bind mount するのは `/mnt/clickhouse-data` 1 つのみ。NVMe は user_data でホスト側 `/mnt/clickhouse-data/s3cache` にネストマウントされており、コンテナからは bind の中で自動的に NVMe が見える形（マウント順序問題が発生しない構造）。
+
+データ本体は S3（`storage_policy='s3_policy'`）に保存され、EBS には metadata + S3 part 参照のみが乗る。EC2 置換時に NVMe（s3cache）は消失するが S3 から再読込されるため、性能の cold start のみで機能影響はなし。
+
+EBS は `aws_ebs_volume.clickhouse` リソース（`infra/terraform/ecs_cluster.tf`）で管理され、`prevent_destroy = true` で誤 destroy を防止。Terraform 上で削除したい場合は明示的に lifecycle ブロックを変更する必要がある。
+
 ## スクリプト一覧
 
 | スクリプト | 用途 | 影響範囲 |
@@ -538,6 +559,93 @@ infra/scripts/
 ```
 
 `source` チェーン: 各メインスクリプトが `lib/common.sh` → `lib/keeper-lib.sh` → `lib/ch-cluster-lib.sh` (+ asg-libは instance-refresh のみ)。
+
+---
+
+## EBS 永続化への Migration（one-shot 手順）
+
+ClickHouse の `/var/lib/clickhouse` を ephemeral storage から EBS 永続化へ切り替える際の手順。**この手順は EBS 構成への初回移行時のみ**。一度完了すれば、以降の `instance-refresh.sh` 実行はメタデータを保持したまま冪等に動作する。
+
+### 前提
+
+- テスト環境または書き込み停止可能な環境で実施
+- Migration 中の既存データ喪失を許容（テスト環境ではデータ再注入で対応）
+- 書き込みレート秒間数百〜数千の本番環境では別途対策が必要（書き込み一時停止 / Kinesis バッファ / 先行レプリカ追加など）
+
+### Round 1: インフラ準備（既存稼働に無影響）
+
+```bash
+cd infra/terraform
+terraform plan -target=aws_ebs_volume.clickhouse -target=aws_launch_template.clickhouse
+terraform apply -target=aws_ebs_volume.clickhouse -target=aws_launch_template.clickhouse
+```
+
+完了条件:
+- 4 本の EBS が `available`: `aws ec2 describe-volumes --filters Name=tag:Project,Values=logplatform Name=tag:ClickHouseNode,Values=s1r1`
+- 既存 EC2 / ECS task は無変更
+
+### Round 2: Keeper zombie クリーンアップ + Phase 3 + 全ノード instance-refresh
+
+```bash
+# 2-1. ClickHouse の全 Keeper レプリカエントリを削除（refresh 後に新規登録される）
+for shard in 01 02; do
+  for replica in 1 2; do
+    curl -sf "http://clickhouse-shard${shard}-replica2.logplatform.local:8123" \
+      --user "default:${CH_PASSWORD}" \
+      --data "SYSTEM DROP REPLICA 'clickhouse-shard${shard}-replica${replica}' FROM ZKPATH '/clickhouse/tables/${shard}/logs_local'" || true
+  done
+done
+
+# 2-2. task definition の変更を反映（既存 task は一時的に空ディレクトリで起動するが、直後の refresh で正規構成に置換される）
+terraform apply
+
+# 2-3. 全ノード refresh（Round1: s1r1+s2r1 並列、Round2: s1r2+s2r2 並列）
+CH_PASSWORD=xxx ./infra/scripts/instance-refresh.sh clickhouse
+```
+
+### Round 3: schema 適用（一回限り）
+
+全ノードが空 EBS で起動している状態から、`ON CLUSTER` で schema を投入:
+
+```bash
+# 一括投入用スクリプト（curl で 1 statement ずつ）
+COORD="http://clickhouse-shard1-replica1.logplatform.local:8123"
+AUTH="default:${CH_PASSWORD}"
+
+curl -sf "${COORD}" --user "${AUTH}" \
+  --data "CREATE DATABASE IF NOT EXISTS logs ON CLUSTER 'logs_cluster'"
+
+curl -sf "${COORD}" --user "${AUTH}" --data-binary @infra/clickhouse/schema/logs.sql
+# あるいは README §シナリオ4.5 と同じ heredoc 方式
+```
+
+### Round 4: 検証
+
+```bash
+# EBS マウント確認
+mount | grep clickhouse-data
+# /dev/xvdf on /mnt/clickhouse-data type ext4 ...
+# /dev/nvme1n1 on /mnt/clickhouse-data/s3cache type xfs ...
+
+# クラスタ状態
+for r in shard1-replica1 shard1-replica2 shard2-replica1 shard2-replica2; do
+  curl -sf "http://clickhouse-${r}.logplatform.local:8123" \
+    --user "default:${CH_PASSWORD}" \
+    --data "SELECT name FROM system.tables WHERE database='logs' FORMAT TabSeparated"
+done
+# 各ノードで logs, logs_local が見えること
+
+# 冪等性テスト（最重要）: 同じノードを2回 refresh しても metadata が消えないことを確認
+CH_PASSWORD=xxx ./infra/scripts/instance-refresh.sh clickhouse --only s1r1
+curl -sf "http://clickhouse-shard1-replica1.logplatform.local:8123" \
+  --user "default:${CH_PASSWORD}" \
+  --data "SELECT name FROM system.tables WHERE database='logs'"
+# logs, logs_local が見える ← これが今回の修正の主目的
+```
+
+### `prevent_destroy` の運用注意
+
+`aws_ebs_volume.clickhouse` には `lifecycle { prevent_destroy = true }` が設定されている。`terraform destroy` は失敗する。意図的にクラスタを破棄する場合は手動で `lifecycle` ブロックをコメントアウトしてから destroy する。
 
 ---
 
