@@ -1,0 +1,741 @@
+Keeper EC2を手動終了し、ASGが新インスタンスを起動した際にEBSが再アタッチされることを確認
+ 再アタッチ後、echo "mntr" | nc keeper-X.logplatform.local 9181 | grep zk_znode_countでznode数が維持されていることを確認
+
+上記を確認する手順を教えてください。https://github.com/taxintt/clickhouse-ecs-sample/pull/7 のPRです。
+
+---
+
+https://github.com/ClickHouse/ClickHouse/pull/51253 を見ましたが、do_not_evict_index_and_mark_files はこのまま残しておいていいですか
+
+---
+
+逆に何か設定する必要があったりしますか
+
+---
+
+ローリングアップデートを安全に行うためのデプロイスクリプトを実装してください。
+
+---
+
+このスクリプトを https://github.com/altinity/clickhouse-operator と比較して機能不足などがないかを確認してください
+
+---
+
+~ $ curl -sf "http://${CH_HOST}:8123" \
+>   --user "default:${CH_PASSWORD}" \
+>   --data "SELECT version()"
+24.12.6.70
+~ $ echo "mntr" | nc keeper-2.logplatform.local 9181 | grep zk_znode_count
+Ncat: TIMEOUT.
+
+---
+
+~ $ for i in 1 2 3; do
+>     echo "--- keeper-$i ---"
+>     echo "ruok" | nc -w 3 keeper-$i.logplatform.local 9181 || echo "TIMEOUT"
+>   done
+--- keeper-1 ---
+Ncat: TIMEOUT.
+TIMEOUT
+--- keeper-2 ---
+Ncat: TIMEOUT.
+TIMEOUT
+--- keeper-3 ---
+Ncat: TIMEOUT.
+TIMEOUT
+~ $ curl -sf "http://${CH_HOST}:8123" \
+>     --user "default:${CH_PASSWORD}" \
+>     --data "SELECT database, table, is_readonly FROM system.replicas FORMAT PrettyCompact"
+
+---
+
+aws ec2 describe-volumes \
+    --filters "Name=tag:Name,Values=*keeper*data*" \
+    --query 'Volumes[].{ID:VolumeId,State:State,AZ:AvailabilityZone,Node:Tags[?Key==`KeeperNode`].Value|[0]}' \
+    --output table
+
+---
+
+🕙[ 22:25:15 ] ❯ for i in 1 2 3; do
+    echo "--- keeper-$i ---"
+    aws ecs describe-services \
+      --cluster logplatform-dev \
+      --services "logplatform-dev-keeper-$i" \
+      --query 'services[0].{desired:desiredCount,running:runningCount,status:status}' \
+      --output table
+  done
+--- keeper-1 ---
+----------------------------------
+|        DescribeServices        |
++---------+-----------+----------+
+| desired |  running  | status   |
++---------+-----------+----------+
+|  1      |  1        |  ACTIVE  |
++---------+-----------+----------+
+--- keeper-2 ---
+----------------------------------
+|        DescribeServices        |
++---------+-----------+----------+
+| desired |  running  | status   |
++---------+-----------+----------+
+|  1      |  1        |  ACTIVE  |
++---------+-----------+----------+
+--- keeper-3 ---
+----------------------------------
+|        DescribeServices        |
++---------+-----------+----------+
+| desired |  running  | status   |
++---------+-----------+----------+
+|  1      |  1        |  ACTIVE  |
++---------+-----------+----------+
+clickhouse-ecs-sample/infra/terraform on  fix/keeper-ebs-persistence [?] via 💠 default on ☁️  (ap-northeast-1) on ☁️  gcp-terraform-277014/nthouse14@gmail.com(asia-northeast1) 
+🕙[ 22:29:30 ] ❯ aws ec2 describe-instances \
+    --filters "Name=tag-key,Values=KeeperNode" "Name=instance-state-name,Values=running,stopped,terminated" \
+    --query 'Reservations[].Instances[].{ID:InstanceId,State:State.Name,Node:Tags[?Key==`KeeperNode`].Value|[0],AZ:Placement.AvailabilityZone}' \
+    --output table
+---------------------------------------------------------------
+|                      DescribeInstances                      |
++------------------+-----------------------+-------+----------+
+|        AZ        |          ID           | Node  |  State   |
++------------------+-----------------------+-------+----------+
+|  ap-northeast-1d |  i-09a0b0e58b63985dc  |  3    |  running |
+|  ap-northeast-1c |  i-0c554d5615f486c60  |  2    |  running |
+|  ap-northeast-1a |  i-0320a7fc3df8d94c8  |  1    |  running |
++------------------+-----------------------+-------+----------+
+clickhouse-ecs-sample/infra/terraform on  fix/keeper-ebs-persistence [?] via 💠 default on ☁️  (ap-northeast-1) on ☁️  gcp-terraform-277014/nthouse14@gmail.com(asia-northeast1) 
+🕙[ 22:29:45 ] ❯ aws ec2 describe-volumes \
+    --filters "Name=tag:Name,Values=*keeper*data*" \
+    --query 'Volumes[].{ID:VolumeId,State:State,AZ:AvailabilityZone,Node:Tags[?Key==`KeeperNode`].Value|[0]}' \
+    --output table
+----------------------------------------------------------------
+|                        DescribeVolumes                       |
++------------------+-------------------------+-------+---------+
+|        AZ        |           ID            | Node  |  State  |
++------------------+-------------------------+-------+---------+
+|  ap-northeast-1c |  vol-0f6ee0e870e63a866  |  2    |  in-use |
+|  ap-northeast-1d |  vol-04820acd5895ba3ea  |  3    |  in-use |
+|  ap-northeast-1a |  vol-0b1c8cfa35c048b8f  |  1    |  in-use |
++------------------+-------------------------+-------+---------+
+
+---
+
+for i in 1 2 3; do
+    echo "=== keeper-$i ==="
+    aws logs tail "/ecs/logplatform-dev/keeper" \
+      --log-stream-name-prefix "keeper-$i" \
+      --since 30m --limit 20
+    echo ""
+  done
+
+---
+
+=== keeper-1 ===
+
+Unknown options: --limit,20
+
+=== keeper-2 ===
+
+Unknown options: --limit,20
+
+=== keeper-3 ===
+
+Unknown options: --limit,20
+
+---
+
+clickhouse-ecs-sample/infra/terraform on  fix/keeper-ebs-persistence [?] via 💠 default on ☁️  (ap-northeast-1) on ☁️  gcp-terraform-277014/nthouse14@gmail.com(asia-northeast1) 
+🕙[ 22:30:21 ] ❯  for i in 1 2 3; do
+    echo "=== keeper-$i ==="
+    aws logs tail "/ecs/logplatform-dev/keeper" \
+      --log-stream-name-prefix "keeper-$i" \
+      --since 30m 2>&1 | tail -30
+    echo ""
+  done
+=== keeper-1 ===
+2026-04-10T13:28:29.452000+00:00 keeper-1/keeper/aec91c554a734c65af880f79bef57abc 2026.04.10 13:28:29.451992 [ 30 ] {} <Information> KeeperTCPHandler: Receiving request for session 3 took 9992 ms
+2026-04-10T13:28:31.572000+00:00 keeper-1/keeper/aec91c554a734c65af880f79bef57abc 2026.04.10 13:28:31.572619 [ 29 ] {} <Information> KeeperTCPHandler: Receiving request for session 2 took 9992 ms
+2026-04-10T13:28:39.452000+00:00 keeper-1/keeper/aec91c554a734c65af880f79bef57abc 2026.04.10 13:28:39.451970 [ 30 ] {} <Information> KeeperTCPHandler: Receiving request for session 3 took 9992 ms
+2026-04-10T13:28:41.572000+00:00 keeper-1/keeper/aec91c554a734c65af880f79bef57abc 2026.04.10 13:28:41.572640 [ 29 ] {} <Information> KeeperTCPHandler: Receiving request for session 2 took 9992 ms
+2026-04-10T13:28:49.452000+00:00 keeper-1/keeper/aec91c554a734c65af880f79bef57abc 2026.04.10 13:28:49.451961 [ 30 ] {} <Information> KeeperTCPHandler: Receiving request for session 3 took 9992 ms
+2026-04-10T13:28:51.572000+00:00 keeper-1/keeper/aec91c554a734c65af880f79bef57abc 2026.04.10 13:28:51.572640 [ 29 ] {} <Information> KeeperTCPHandler: Receiving request for session 2 took 9992 ms
+2026-04-10T13:28:59.452000+00:00 keeper-1/keeper/aec91c554a734c65af880f79bef57abc 2026.04.10 13:28:59.451965 [ 30 ] {} <Information> KeeperTCPHandler: Receiving request for session 3 took 9992 ms
+2026-04-10T13:29:01.572000+00:00 keeper-1/keeper/aec91c554a734c65af880f79bef57abc 2026.04.10 13:29:01.572679 [ 29 ] {} <Information> KeeperTCPHandler: Receiving request for session 2 took 9992 ms
+2026-04-10T13:29:09.452000+00:00 keeper-1/keeper/aec91c554a734c65af880f79bef57abc 2026.04.10 13:29:09.451953 [ 30 ] {} <Information> KeeperTCPHandler: Receiving request for session 3 took 9992 ms
+2026-04-10T13:29:11.572000+00:00 keeper-1/keeper/aec91c554a734c65af880f79bef57abc 2026.04.10 13:29:11.572614 [ 29 ] {} <Information> KeeperTCPHandler: Receiving request for session 2 took 9991 ms
+2026-04-10T13:29:19.452000+00:00 keeper-1/keeper/aec91c554a734c65af880f79bef57abc 2026.04.10 13:29:19.451978 [ 30 ] {} <Information> KeeperTCPHandler: Receiving request for session 3 took 9992 ms
+2026-04-10T13:29:21.572000+00:00 keeper-1/keeper/aec91c554a734c65af880f79bef57abc 2026.04.10 13:29:21.572630 [ 29 ] {} <Information> KeeperTCPHandler: Receiving request for session 2 took 9992 ms
+2026-04-10T13:29:29.452000+00:00 keeper-1/keeper/aec91c554a734c65af880f79bef57abc 2026.04.10 13:29:29.451966 [ 30 ] {} <Information> KeeperTCPHandler: Receiving request for session 3 took 9992 ms
+2026-04-10T13:29:31.572000+00:00 keeper-1/keeper/aec91c554a734c65af880f79bef57abc 2026.04.10 13:29:31.572528 [ 29 ] {} <Information> KeeperTCPHandler: Receiving request for session 2 took 9992 ms
+2026-04-10T13:29:39.452000+00:00 keeper-1/keeper/aec91c554a734c65af880f79bef57abc 2026.04.10 13:29:39.451951 [ 30 ] {} <Information> KeeperTCPHandler: Receiving request for session 3 took 9992 ms
+2026-04-10T13:29:41.572000+00:00 keeper-1/keeper/aec91c554a734c65af880f79bef57abc 2026.04.10 13:29:41.572635 [ 29 ] {} <Information> KeeperTCPHandler: Receiving request for session 2 took 9992 ms
+2026-04-10T13:29:49.452000+00:00 keeper-1/keeper/aec91c554a734c65af880f79bef57abc 2026.04.10 13:29:49.451973 [ 30 ] {} <Information> KeeperTCPHandler: Receiving request for session 3 took 9993 ms
+2026-04-10T13:29:51.572000+00:00 keeper-1/keeper/aec91c554a734c65af880f79bef57abc 2026.04.10 13:29:51.572628 [ 29 ] {} <Information> KeeperTCPHandler: Receiving request for session 2 took 9992 ms
+2026-04-10T13:29:59.452000+00:00 keeper-1/keeper/aec91c554a734c65af880f79bef57abc 2026.04.10 13:29:59.451972 [ 30 ] {} <Information> KeeperTCPHandler: Receiving request for session 3 took 9992 ms
+2026-04-10T13:30:01.572000+00:00 keeper-1/keeper/aec91c554a734c65af880f79bef57abc 2026.04.10 13:30:01.572663 [ 29 ] {} <Information> KeeperTCPHandler: Receiving request for session 2 took 9992 ms
+2026-04-10T13:30:09.452000+00:00 keeper-1/keeper/aec91c554a734c65af880f79bef57abc 2026.04.10 13:30:09.451977 [ 30 ] {} <Information> KeeperTCPHandler: Receiving request for session 3 took 9992 ms
+2026-04-10T13:30:11.572000+00:00 keeper-1/keeper/aec91c554a734c65af880f79bef57abc 2026.04.10 13:30:11.572622 [ 29 ] {} <Information> KeeperTCPHandler: Receiving request for session 2 took 9982 ms
+2026-04-10T13:30:19.452000+00:00 keeper-1/keeper/aec91c554a734c65af880f79bef57abc 2026.04.10 13:30:19.452012 [ 30 ] {} <Information> KeeperTCPHandler: Receiving request for session 3 took 9992 ms
+2026-04-10T13:30:21.572000+00:00 keeper-1/keeper/aec91c554a734c65af880f79bef57abc 2026.04.10 13:30:21.572618 [ 29 ] {} <Information> KeeperTCPHandler: Receiving request for session 2 took 9992 ms
+2026-04-10T13:30:29.452000+00:00 keeper-1/keeper/aec91c554a734c65af880f79bef57abc 2026.04.10 13:30:29.451991 [ 30 ] {} <Information> KeeperTCPHandler: Receiving request for session 3 took 9992 ms
+2026-04-10T13:30:31.572000+00:00 keeper-1/keeper/aec91c554a734c65af880f79bef57abc 2026.04.10 13:30:31.572624 [ 29 ] {} <Information> KeeperTCPHandler: Receiving request for session 2 took 9992 ms
+2026-04-10T13:30:39.452000+00:00 keeper-1/keeper/aec91c554a734c65af880f79bef57abc 2026.04.10 13:30:39.451980 [ 30 ] {} <Information> KeeperTCPHandler: Receiving request for session 3 took 9992 ms
+2026-04-10T13:30:41.572000+00:00 keeper-1/keeper/aec91c554a734c65af880f79bef57abc 2026.04.10 13:30:41.572636 [ 29 ] {} <Information> KeeperTCPHandler: Receiving request for session 2 took 9992 ms
+2026-04-10T13:30:49.452000+00:00 keeper-1/keeper/aec91c554a734c65af880f79bef57abc 2026.04.10 13:30:49.451985 [ 30 ] {} <Information> KeeperTCPHandler: Receiving request for session 3 took 9992 ms
+2026-04-10T13:30:51.572000+00:00 keeper-1/keeper/aec91c554a734c65af880f79bef57abc 2026.04.10 13:30:51.572642 [ 29 ] {} <Information> KeeperTCPHandler: Receiving request for session 2 took 9992 ms
+
+=== keeper-2 ===
+2026-04-10T13:25:48.582000+00:00 keeper-2/keeper/226b340930514c01a2e9de1fcce6fb31 2026.04.10 13:25:48.582620 [ 44 ] {} <Information> RaftInstance: [PRE-VOTE DONE] actual vote is already initiated, do nothing
+2026-04-10T13:25:48.590000+00:00 keeper-2/keeper/226b340930514c01a2e9de1fcce6fb31 2026.04.10 13:25:48.590549 [ 52 ] {} <Information> RaftInstance: [VOTE RESP] peer 3 (O), resp term 1, my role candidate, granted 2, responded 2, num voting members 3, quorum 2
+2026-04-10T13:25:48.590000+00:00 keeper-2/keeper/226b340930514c01a2e9de1fcce6fb31 2026.04.10 13:25:48.590576 [ 52 ] {} <Information> RaftInstance: Server is elected as leader for term 1
+2026-04-10T13:25:48.590000+00:00 keeper-2/keeper/226b340930514c01a2e9de1fcce6fb31 2026.04.10 13:25:48.590593 [ 52 ] {} <Information> RaftInstance: number of pending commit elements: 0
+2026-04-10T13:25:48.590000+00:00 keeper-2/keeper/226b340930514c01a2e9de1fcce6fb31 2026.04.10 13:25:48.590619 [ 52 ] {} <Information> RaftInstance: state machine commit index 0, precommit index 0, last log index 0
+2026-04-10T13:25:48.594000+00:00 keeper-2/keeper/226b340930514c01a2e9de1fcce6fb31 2026.04.10 13:25:48.594035 [ 52 ] {} <Information> RaftInstance: [BECOME LEADER] appended new config at 1
+2026-04-10T13:25:48.594000+00:00 keeper-2/keeper/226b340930514c01a2e9de1fcce6fb31 2026.04.10 13:25:48.594296 [ 52 ] {} <Information> RaftInstance:   === LEADER (term 1) ===
+2026-04-10T13:25:48.594000+00:00 keeper-2/keeper/226b340930514c01a2e9de1fcce6fb31 2026.04.10 13:25:48.594349 [ 43 ] {} <Information> RaftInstance: Election completed, will ignore the voting result from this server
+2026-04-10T13:25:48.598000+00:00 keeper-2/keeper/226b340930514c01a2e9de1fcce6fb31 2026.04.10 13:25:48.598384 [ 57 ] {} <Information> RaftInstance: config at index 1 is committed, prev config log idx 0
+2026-04-10T13:25:48.598000+00:00 keeper-2/keeper/226b340930514c01a2e9de1fcce6fb31 2026.04.10 13:25:48.598420 [ 57 ] {} <Information> RaftInstance: new config log idx 1, prev log idx 0, cur config log idx 0, prev log idx 0
+2026-04-10T13:25:48.598000+00:00 keeper-2/keeper/226b340930514c01a2e9de1fcce6fb31 2026.04.10 13:25:48.598465 [ 57 ] {} <Information> RaftInstance: new configuration: log idx 1, prev log idx 0
+2026-04-10T13:25:48.598000+00:00 keeper-2/keeper/226b340930514c01a2e9de1fcce6fb31 peer 1, DC ID 0, keeper-1.logplatform.local:9234, voting member, 1
+2026-04-10T13:25:48.598000+00:00 keeper-2/keeper/226b340930514c01a2e9de1fcce6fb31 peer 2, DC ID 0, keeper-2.logplatform.local:9234, voting member, 1
+2026-04-10T13:25:48.598000+00:00 keeper-2/keeper/226b340930514c01a2e9de1fcce6fb31 peer 3, DC ID 0, keeper-3.logplatform.local:9234, voting member, 1
+2026-04-10T13:25:48.598000+00:00 keeper-2/keeper/226b340930514c01a2e9de1fcce6fb31 my id: 2, leader: 2, term: 1
+2026-04-10T13:25:48.598000+00:00 keeper-2/keeper/226b340930514c01a2e9de1fcce6fb31 2026.04.10 13:25:48.598880 [ 1 ] {} <Information> Application: Listening for Keeper (tcp): 0.0.0.0:9181
+2026-04-10T13:25:48.603000+00:00 keeper-2/keeper/226b340930514c01a2e9de1fcce6fb31 2026.04.10 13:25:48.603259 [ 1 ] {} <Information> Application: keeper_server.max_memory_usage_soft_limit is set to 3.37 GiB
+2026-04-10T13:25:48.603000+00:00 keeper-2/keeper/226b340930514c01a2e9de1fcce6fb31 2026.04.10 13:25:48.603376 [ 1 ] {} <Information> CertificateReloader: One of paths is empty. Cannot apply new configuration for certificates. Fill all paths and try again.
+2026-04-10T13:25:48.603000+00:00 keeper-2/keeper/226b340930514c01a2e9de1fcce6fb31 2026.04.10 13:25:48.603389 [ 1 ] {} <Information> CertificateReloader: One of paths is empty. Cannot apply new configuration for certificates. Fill all paths and try again.
+2026-04-10T13:25:48.604000+00:00 keeper-2/keeper/226b340930514c01a2e9de1fcce6fb31 2026.04.10 13:25:48.604010 [ 1 ] {} <Information> CgroupsMemoryUsageObserver: Started cgroup current memory usage observer thread
+2026-04-10T13:25:48.604000+00:00 keeper-2/keeper/226b340930514c01a2e9de1fcce6fb31 2026.04.10 13:25:48.604033 [ 1 ] {} <Information> Application: Ready for connections.
+2026-04-10T13:25:48.604000+00:00 keeper-2/keeper/226b340930514c01a2e9de1fcce6fb31 2026.04.10 13:25:48.604246 [ 75 ] {} <Information> CgroupsMemoryUsageObserver: Memory amount initially available to the process is 3.75 GiB
+2026-04-10T13:25:56.992000+00:00 keeper-2/keeper/226b340930514c01a2e9de1fcce6fb31 2026.04.10 13:25:56.991962 [ 30 ] {} <Warning> KeeperTCPHandler: Client has not sent any data.
+2026-04-10T13:25:57.512000+00:00 keeper-2/keeper/226b340930514c01a2e9de1fcce6fb31 2026.04.10 13:25:57.512074 [ 54 ] {} <Information> RaftInstance: receive a incoming rpc connection
+2026-04-10T13:25:57.512000+00:00 keeper-2/keeper/226b340930514c01a2e9de1fcce6fb31 2026.04.10 13:25:57.512122 [ 54 ] {} <Information> RaftInstance: session 1 got connection from ::ffff:10.0.102.39:41126 (as a server)
+2026-04-10T13:26:01.043000+00:00 keeper-2/keeper/226b340930514c01a2e9de1fcce6fb31 2026.04.10 13:26:01.043864 [ 30 ] {} <Warning> KeeperTCPHandler: Client has not sent any data.
+2026-04-10T13:26:01.565000+00:00 keeper-2/keeper/226b340930514c01a2e9de1fcce6fb31 2026.04.10 13:26:01.565267 [ 56 ] {} <Information> RaftInstance: receive a incoming rpc connection
+2026-04-10T13:26:01.565000+00:00 keeper-2/keeper/226b340930514c01a2e9de1fcce6fb31 2026.04.10 13:26:01.565308 [ 56 ] {} <Information> RaftInstance: session 2 got connection from ::ffff:10.0.100.119:35296 (as a server)
+2026-04-10T13:26:08.920000+00:00 keeper-2/keeper/226b340930514c01a2e9de1fcce6fb31 2026.04.10 13:26:08.920621 [ 30 ] {} <Warning> KeeperTCPHandler: Client has not sent any data.
+2026-04-10T13:26:10.773000+00:00 keeper-2/keeper/226b340930514c01a2e9de1fcce6fb31 2026.04.10 13:26:10.773322 [ 30 ] {} <Warning> KeeperTCPHandler: Client has not sent any data.
+
+=== keeper-3 ===
+2026-04-10T13:28:31.291000+00:00 keeper-3/keeper/6e0aca5c9f0a46c480a4073d19076d49 2026.04.10 13:28:31.291762 [ 30 ] {} <Information> KeeperTCPHandler: Receiving request for session 4 took 9995 ms
+2026-04-10T13:28:37.517000+00:00 keeper-3/keeper/6e0aca5c9f0a46c480a4073d19076d49 2026.04.10 13:28:37.517701 [ 29 ] {} <Information> KeeperTCPHandler: Receiving request for session 1 took 9994 ms
+2026-04-10T13:28:41.291000+00:00 keeper-3/keeper/6e0aca5c9f0a46c480a4073d19076d49 2026.04.10 13:28:41.291789 [ 30 ] {} <Information> KeeperTCPHandler: Receiving request for session 4 took 9995 ms
+2026-04-10T13:28:47.517000+00:00 keeper-3/keeper/6e0aca5c9f0a46c480a4073d19076d49 2026.04.10 13:28:47.517730 [ 29 ] {} <Information> KeeperTCPHandler: Receiving request for session 1 took 9995 ms
+2026-04-10T13:28:51.291000+00:00 keeper-3/keeper/6e0aca5c9f0a46c480a4073d19076d49 2026.04.10 13:28:51.291809 [ 30 ] {} <Information> KeeperTCPHandler: Receiving request for session 4 took 9994 ms
+2026-04-10T13:28:57.517000+00:00 keeper-3/keeper/6e0aca5c9f0a46c480a4073d19076d49 2026.04.10 13:28:57.517722 [ 29 ] {} <Information> KeeperTCPHandler: Receiving request for session 1 took 9995 ms
+2026-04-10T13:29:01.291000+00:00 keeper-3/keeper/6e0aca5c9f0a46c480a4073d19076d49 2026.04.10 13:29:01.291819 [ 30 ] {} <Information> KeeperTCPHandler: Receiving request for session 4 took 9995 ms
+2026-04-10T13:29:07.517000+00:00 keeper-3/keeper/6e0aca5c9f0a46c480a4073d19076d49 2026.04.10 13:29:07.517709 [ 29 ] {} <Information> KeeperTCPHandler: Receiving request for session 1 took 9995 ms
+2026-04-10T13:29:11.291000+00:00 keeper-3/keeper/6e0aca5c9f0a46c480a4073d19076d49 2026.04.10 13:29:11.291782 [ 30 ] {} <Information> KeeperTCPHandler: Receiving request for session 4 took 9995 ms
+2026-04-10T13:29:17.517000+00:00 keeper-3/keeper/6e0aca5c9f0a46c480a4073d19076d49 2026.04.10 13:29:17.517712 [ 29 ] {} <Information> KeeperTCPHandler: Receiving request for session 1 took 9994 ms
+2026-04-10T13:29:21.291000+00:00 keeper-3/keeper/6e0aca5c9f0a46c480a4073d19076d49 2026.04.10 13:29:21.291796 [ 30 ] {} <Information> KeeperTCPHandler: Receiving request for session 4 took 9995 ms
+2026-04-10T13:29:27.518000+00:00 keeper-3/keeper/6e0aca5c9f0a46c480a4073d19076d49 2026.04.10 13:29:27.517674 [ 29 ] {} <Information> KeeperTCPHandler: Receiving request for session 1 took 9994 ms
+2026-04-10T13:29:31.291000+00:00 keeper-3/keeper/6e0aca5c9f0a46c480a4073d19076d49 2026.04.10 13:29:31.291774 [ 30 ] {} <Information> KeeperTCPHandler: Receiving request for session 4 took 9994 ms
+2026-04-10T13:29:37.517000+00:00 keeper-3/keeper/6e0aca5c9f0a46c480a4073d19076d49 2026.04.10 13:29:37.517722 [ 29 ] {} <Information> KeeperTCPHandler: Receiving request for session 1 took 9995 ms
+2026-04-10T13:29:41.291000+00:00 keeper-3/keeper/6e0aca5c9f0a46c480a4073d19076d49 2026.04.10 13:29:41.291788 [ 30 ] {} <Information> KeeperTCPHandler: Receiving request for session 4 took 9995 ms
+2026-04-10T13:29:47.517000+00:00 keeper-3/keeper/6e0aca5c9f0a46c480a4073d19076d49 2026.04.10 13:29:47.517719 [ 29 ] {} <Information> KeeperTCPHandler: Receiving request for session 1 took 9995 ms
+2026-04-10T13:29:51.291000+00:00 keeper-3/keeper/6e0aca5c9f0a46c480a4073d19076d49 2026.04.10 13:29:51.291798 [ 30 ] {} <Information> KeeperTCPHandler: Receiving request for session 4 took 9995 ms
+2026-04-10T13:29:57.517000+00:00 keeper-3/keeper/6e0aca5c9f0a46c480a4073d19076d49 2026.04.10 13:29:57.517677 [ 29 ] {} <Information> KeeperTCPHandler: Receiving request for session 1 took 9995 ms
+2026-04-10T13:30:01.291000+00:00 keeper-3/keeper/6e0aca5c9f0a46c480a4073d19076d49 2026.04.10 13:30:01.291812 [ 30 ] {} <Information> KeeperTCPHandler: Receiving request for session 4 took 9995 ms
+2026-04-10T13:30:07.517000+00:00 keeper-3/keeper/6e0aca5c9f0a46c480a4073d19076d49 2026.04.10 13:30:07.517714 [ 29 ] {} <Information> KeeperTCPHandler: Receiving request for session 1 took 9995 ms
+2026-04-10T13:30:11.291000+00:00 keeper-3/keeper/6e0aca5c9f0a46c480a4073d19076d49 2026.04.10 13:30:11.291787 [ 30 ] {} <Information> KeeperTCPHandler: Receiving request for session 4 took 9994 ms
+2026-04-10T13:30:17.517000+00:00 keeper-3/keeper/6e0aca5c9f0a46c480a4073d19076d49 2026.04.10 13:30:17.517722 [ 29 ] {} <Information> KeeperTCPHandler: Receiving request for session 1 took 9994 ms
+2026-04-10T13:30:21.291000+00:00 keeper-3/keeper/6e0aca5c9f0a46c480a4073d19076d49 2026.04.10 13:30:21.291799 [ 30 ] {} <Information> KeeperTCPHandler: Receiving request for session 4 took 9995 ms
+2026-04-10T13:30:27.517000+00:00 keeper-3/keeper/6e0aca5c9f0a46c480a4073d19076d49 2026.04.10 13:30:27.517699 [ 29 ] {} <Information> KeeperTCPHandler: Receiving request for session 1 took 9994 ms
+2026-04-10T13:30:31.292000+00:00 keeper-3/keeper/6e0aca5c9f0a46c480a4073d19076d49 2026.04.10 13:30:31.291813 [ 30 ] {} <Information> KeeperTCPHandler: Receiving request for session 4 took 9995 ms
+2026-04-10T13:30:37.517000+00:00 keeper-3/keeper/6e0aca5c9f0a46c480a4073d19076d49 2026.04.10 13:30:37.517696 [ 29 ] {} <Information> KeeperTCPHandler: Receiving request for session 1 took 9994 ms
+2026-04-10T13:30:41.291000+00:00 keeper-3/keeper/6e0aca5c9f0a46c480a4073d19076d49 2026.04.10 13:30:41.291800 [ 30 ] {} <Information> KeeperTCPHandler: Receiving request for session 4 took 9995 ms
+2026-04-10T13:30:47.517000+00:00 keeper-3/keeper/6e0aca5c9f0a46c480a4073d19076d49 2026.04.10 13:30:47.517696 [ 29 ] {} <Information> KeeperTCPHandler: Receiving request for session 1 took 9994 ms
+2026-04-10T13:30:51.291000+00:00 keeper-3/keeper/6e0aca5c9f0a46c480a4073d19076d49 2026.04.10 13:30:51.291763 [ 30 ] {} <Information> KeeperTCPHandler: Receiving request for session 4 took 9995 ms
+2026-04-10T13:30:57.517000+00:00 keeper-3/keeper/6e0aca5c9f0a46c480a4073d19076d49 2026.04.10 13:30:57.517702 [ 29 ] {} <Information> KeeperTCPHandler: Receiving request for session 1 took 9995 ms
+
+---
+
+🕙[ 22:31:04 ] ❯ aws ssm start-session --target i-0c554d5615f486c60
+
+Starting session with SessionId: admin-oxlagngsnjktyuf5sdjvsn9oc4
+sh-5.2$ df -h /mnt/keeper-data
+  ls -la /mnt/keeper-data/
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/nvme1n1     20G  101M   19G   1% /mnt/keeper-data
+total 44
+drwxr-xr-x. 7  101  101  4096 Apr 10 13:25 .
+drwxr-xr-x. 4 root root    36 Apr 10 13:24 ..
+drwxr-xr-x. 2  101  101  4096 Apr 10 13:25 log
+drwxr-x---. 2  101  101  4096 Apr 10 13:25 logs
+drwx------. 2  101  101 16384 Apr 10 13:24 lost+found
+drwxr-x---. 2  101  101  4096 Apr 10 13:25 preprocessed_configs
+drwxr-xr-x. 2  101  101  4096 Apr 10 13:25 snapshots
+-rw-r-----. 1  101  101    23 Apr 10 13:25 state
+-rw-r-----. 1  101  101    36 Apr 10 13:25 uuid
+sh-5.2$ grep -A 10 "attach-volume\|VOLUME_ID\|blkid\|mkfs" /var/log/cloud-init-output.log
+grep: /var/log/cloud-init-output.log: Permission denied
+sh-5.2$ sudo su -
+[root@ip-10-0-101-144 ~]# grep -A 10 "attach-volume\|VOLUME_ID\|blkid\|mkfs" /var/log/cloud-init-output.log
+[root@ip-10-0-101-144 ~]# lsblk
+NAME          MAJ:MIN RM SIZE RO TYPE MOUNTPOINTS
+nvme0n1       259:0    0  30G  0 disk 
+├─nvme0n1p1   259:1    0  30G  0 part /
+├─nvme0n1p127 259:2    0   1M  0 part 
+└─nvme0n1p128 259:3    0  10M  0 part /boot/efi
+nvme1n1       259:4    0  20G  0 disk /mnt/keeper-data
+
+---
+
+[root@ip-10-0-101-144 ~]# top -bn1 | head -5
+  cat /proc/loadavg
+top - 13:32:31 up 9 min,  1 user,  load average: 0.09, 0.07, 0.04
+Tasks: 114 total,   1 running, 113 sleeping,   0 stopped,   0 zombie
+%Cpu(s):  0.0 us,  6.1 sy,  0.0 ni, 90.9 id,  0.0 wa,  0.0 hi,  3.0 si,  0.0 st
+MiB Mem :   3839.6 total,   1853.9 free,    353.3 used,   1632.4 buff/cache
+MiB Swap:      0.0 total,      0.0 free,      0.0 used.   3265.3 avail Mem 
+0.09 0.07 0.04 1/249 4365
+
+---
+
+[root@ip-10-0-101-144 ~]# ls -la /mnt/keeper-data/logs/
+  ls -la /mnt/keeper-data/snapshots/
+  cat /mnt/keeper-data/state
+total 102408
+drwxr-x---. 2 101 101  4096 Apr 10 13:25 .
+drwxr-xr-x. 7 101 101  4096 Apr 10 13:25 ..
+-rw-r-----. 1 101 101 22181 Apr 10 13:32 changelog_1_100000.bin
+total 8
+drwxr-xr-x. 2 101 101 4096 Apr 10 13:25 .
+drwxr-xr-x. 7 101 101 4096 Apr 10 13:25 ..
+m�_�>�[root@ip-10-0-101-14docker psker ps
+  docker inspect $(docker ps -q --filter "name=keeper") | grep -A 5 "Mounts"
+CONTAINER ID   IMAGE                                                                                        COMMAND            CREATED         STATUS                   PORTS     NAMES
+8a18f22f2090   875033467243.dkr.ecr.ap-northeast-1.amazonaws.com/logplatform-dev/clickhouse-keeper:latest   "/entrypoint.sh"   7 minutes ago   Up 7 minutes (healthy)             ecs-logplatform-dev-keeper-2-6-keeper-f69cd7e784f19ef60100
+dca48290ec2c   amazon/amazon-ecs-pause:0.1.0                                                                "/pause"           7 minutes ago   Up 7 minutes                       ecs-logplatform-dev-keeper-2-6-internalecspause-bef2b3ef94b1d4e5f001
+7b0973efe233   amazon/amazon-ecs-agent:latest                                                               "/agent"           8 minutes ago   Up 8 minutes (healthy)             ecs-agent
+        "Mounts": [
+            {
+                "Type": "bind",
+                "Source": "/mnt/keeper-data",
+                "Destination": "/var/lib/clickhouse/coordination",
+                "Mode": "",
+--
+        "Mounts": [],
+        "Config": {
+            "Hostname": "ip-10-0-101-214.ap-northeast-1.compute.internal",
+            "Domainname": "",
+            "User": "",
+            "AttachStdin": false,
+[root@ip-10-0-101-144 ~]#
+
+---
+
+[root@ip-10-0-101-144 ~]# ls -la /mnt/keeper-data/logs/
+  ls -la /mnt/keeper-data/snapshots/
+  cat /mnt/keeper-data/state
+total 102408
+drwxr-x---. 2 101 101  4096 Apr 10 13:25 .
+drwxr-xr-x. 7 101 101  4096 Apr 10 13:25 ..
+-rw-r-----. 1 101 101 22181 Apr 10 13:32 changelog_1_100000.bin
+total 8
+drwxr-xr-x. 2 101 101 4096 Apr 10 13:25 .
+drwxr-xr-x. 7 101 101 4096 Apr 10 13:25 ..
+m�_�>�[root@ip-10-0-101-14docker psker ps
+  docker inspect $(docker ps -q --filter "name=keeper") | grep -A 5 "Mounts"
+CONTAINER ID   IMAGE                                                                                        COMMAND            CREATED         STATUS                   PORTS     NAMES
+8a18f22f2090   875033467243.dkr.ecr.ap-northeast-1.amazonaws.com/logplatform-dev/clickhouse-keeper:latest   "/entrypoint.sh"   7 minutes ago   Up 7 minutes (healthy)             ecs-logplatform-dev-keeper-2-6-keeper-f69cd7e784f19ef60100
+dca48290ec2c   amazon/amazon-ecs-pause:0.1.0                                                                "/pause"           7 minutes ago   Up 7 minutes                       ecs-logplatform-dev-keeper-2-6-internalecspause-bef2b3ef94b1d4e5f001
+7b0973efe233   amazon/amazon-ecs-agent:latest                                                               "/agent"           8 minutes ago   Up 8 minutes (healthy)             ecs-agent
+        "Mounts": [
+            {
+                "Type": "bind",
+                "Source": "/mnt/keeper-data",
+                "Destination": "/var/lib/clickhouse/coordination",
+                "Mode": "",
+--
+        "Mounts": [],
+        "Config": {
+            "Hostname": "ip-10-0-101-214.ap-northeast-1.compute.internal",
+            "Domainname": "",
+            "User": "",
+            "AttachStdin": false,
+[root@ip-10-0-101-144 ~]# docker exec 8a18f22f2090 sh -c "netstat -tlnp 2>/dev/null || ss -tlnp" | grep 9181
+tcp        0      0 0.0.0.0:9181            0.0.0.0:*               LISTEN      -
+[root@ip-10-0-101-144 ~]# docker exec 8a18f22f2090 sh -c "echo ruok | nc localhost 9181 -w 3" 2>&1 || \
+  docker exec 8a18f22f2090 sh -c "echo ruok > /dev/tcp/localhost/9181"
+imok[root@ip-10-0-101-144 echo "ruok" | nc -w 3 localhost 91819181
+-bash: nc: command not found
+
+---
+
+[root@ip-10-0-101-144 ~]# docker exec 8a18f22f2090 sh -c "hostname -I"
+hostname: unrecognized option: I
+BusyBox v1.37.0 (2025-01-17 18:12:01 UTC) multi-call binary.
+
+Usage: hostname [-sidf] [HOSTNAME | -F FILE]
+
+Show or set hostname or DNS domain name
+
+        -s      Short
+        -i      Addresses for the hostname
+        -d      DNS domain name
+        -f      Fully qualified domain name
+        -F FILE Use FILE's content as hostname
+
+---
+
+では、networking.tfで修正してください
+
+---
+
+curl -sf "http://${CH_HOST}:8123" \
+    --user "default:${CH_PASSWORD}" \
+    --data "SELECT database, table, is_readonly FROM system.replicas FORMAT PrettyCompact"
+
+---
+
+│ Error: Instance cannot be destroyed
+│ 
+│   on ecs_cluster.tf line 138:
+│  138: resource "aws_ebs_volume" "keeper" {
+│ 
+│ Resource aws_ebs_volume.keeper["3"] has lifecycle.prevent_destroy set, but the plan calls for this resource to be destroyed. To avoid this error and
+│ continue with the plan, either disable lifecycle.prevent_destroy or reduce the scope of the plan using the -target option.
+╵
+╷
+│ Error: Instance cannot be destroyed
+│ 
+│   on ecs_cluster.tf line 138:
+│  138: resource "aws_ebs_volume" "keeper" {
+│ 
+│ Resource aws_ebs_volume.keeper["1"] has lifecycle.prevent_destroy set, but the plan calls for this resource to be destroyed. To avoid this error and
+│ continue with the plan, either disable lifecycle.prevent_destroy or reduce the scope of the plan using the -target option.
+╵
+╷
+│ Error: Instance cannot be destroyed
+│ 
+│   on ecs_cluster.tf line 138:
+│  138: resource "aws_ebs_volume" "keeper" {
+│ 
+│ Resource aws_ebs_volume.keeper["2"] has lifecycle.prevent_destroy set, but the plan calls for this resource to be destroyed. To avoid this error and
+│ continue with the plan, either disable lifecycle.prevent_destroy or reduce the scope of the plan using the -target option.
+
+---
+
+fix/keeper-ebs-persistence branchでterraform applyしてからdestroyしようとしています
+
+---
+
+rolling-update.shについて、https://clickhouse.com/docs/jp/operations/update に沿って適切でしょうか? アップグレードの流れを図にしてください
+
+---
+
+修正してください
+
+---
+
+/plan 下記のようなユースケースを考えているのですが、既存のスクリプトで対応できますか? また、もし実現するならどのようなオペレーションが必要になりますか?
+[ ] シャード・レプリカの追加によるスケールアップと設定反映
+- [ ] シャードのスケールアップによるノードの入れ替え
+
+---
+
+スケーリング頻度は多くありません (年に数回とか)、ノードの入れ替えはインスタンスタイプの変更やOS更新など様々な用途を想定しています。シャード追加時に既存データの再分配までできると望ましいです。
+
+---
+
+/code-review この実装計画についてレビューして
+
+---
+
+>  パーティションはtoYYYYMM(timestamp)（月単位）ですが、sharding keyはsipHash64(tenant_id)です
+これを改善する方法はあるでしょうか?
+
+---
+
+であれば、TTL自然消滅 + weightで一旦考えてください
+
+---
+
+ちなみにEKS (clickhouse operator) を利用する場合に、スケーリングやノードの入れ替えって楽になる?
+
+---
+
+/plan instance-refresh.shとrebalance-shard.shの実装を計画してください。また、どのように利用すると良いか教えてください。
+
+---
+
+ok
+
+---
+
+ちなみにスクリプトで実装していますが、これを別の方法で実装することはできますか? 実際に実装する必要はないので考察してみてください
+
+---
+
+実装したスクリプトについてUsage Guide（シナリオ別）を用意してください
+
+---
+
+いずれのシナリオもダウンタイムを許容したくないのですが、実際にはどのくらいをダウンタイムを想定していますか?
+
+---
+
+PR作成して
+
+---
+
+、-c commit.gpgsign=false でコミット
+
+---
+
+/codex-review https://github.com/taxintt/clickhouse-ecs-sample/pull/12
+
+---
+
+/codex-review https://github.com/taxintt/clickhouse-ecs-sample/pull/12
+
+---
+
+同じPRで対応して
+
+---
+
+./infra/scripts/instance-refresh.sh clickhouse を実行中ですが、下記のような状況です。正常に進行していますか?
+
+[04:40:59] INFO  >>> Round: s1r1 s2r1
+[04:40:59] INFO  Excluding s1r1 from distributed queries...
+[04:40:59] INFO  Stopped distributed sends on s1r1
+[04:40:59] INFO  Draining in-flight queries on s1r1...
+[04:42:59] WARN  Query drain timed out on s1r1 after 120s (proceeding)
+[04:43:00] INFO  Excluding s2r1 from distributed queries...
+[04:43:00] INFO  Stopped distributed sends on s2r1
+[04:43:00] INFO  Draining in-flight queries on s2r1...
+[04:45:00] WARN  Query drain timed out on s2r1 after 120s (proceeding)
+[04:45:00] INFO  Starting refresh on s1r1 (asg=logplatform-dev-ch-s1r1)
+[04:45:01] INFO  Starting refresh on s2r1 (asg=logplatform-dev-ch-s2r1)
+[04:45:02] INFO  Waiting for instance refresh on logplatform-dev-ch-s1r1 (refresh_id=814d658c-02b7-40a9-94fe-8af564ed4212)...
+[04:45:52] INFO    logplatform-dev-ch-s1r1: InProgress (0%) - 60s/1200s
+[04:46:58] INFO    logplatform-dev-ch-s1r1: InProgress (0%) - 120s/1200s
+[04:48:03] INFO    logplatform-dev-ch-s1r1: InProgress (0%) - 180s/1200s
+
+---
+
+スクリプトを利用する場合に、シャード・レプリカの追加によるスケールアップと設定反映はどのように行いますか?
+
+---
+
+c単に1ノードのスペック増強 → instance-refresh.sh とありますが、これって具体的にどのような処理の流れでしたっけ?
+
+---
+
+./infra/scripts/instance-refresh.sh clickhouse を実行中しましたが、正常に動作していないようでした。EC2のイベントなどを含めて調査してください。
+
+---
+
+~ $   clickhouse-client --host clickhouse-shard1-replica1.logplatform.local \
+>     --user default --password "${CH_PASSWORD}" \
+>     --query "SELECT replica_name, is_readonly, absolute_delay
+>              FROM clusterAllReplicas('logs_cluster', system.replicas)
+>              WHERE database='logs' AND table='logs_local'"
+-bash: clickhouse-client: command not found
+
+---
+
+instance-refresh を実行した目的はスクリプトの動作テストでした
+
+---
+
+./infra/scripts/instance-refresh.sh clickhouse
+[05:20:56] INFO  Instance refresh target: clickhouse
+[05:20:56] INFO  Cluster: logplatform-dev (region: ap-northeast-1)
+
+[05:20:56] WARN  Topology discovery failed; using static node list.
+
+---
+
+./infra/scripts/instance-refresh.sh clickhouse で途中でscriptが意図せずabortしました。どこまで完了したかが不明なのですが、どのように確認するといいでしょうか
+
+---
+
+~ $ curl -sf "http://${CH_HOST}:8123" \
+>   --user "default:${CH_PASSWORD}" \
+>   --data "SELECT cluster, shard_num, replica_num, host_name FROM system.clusters WHERE cluster = 'logs_cluster' FORMAT PrettyCompact"
+   ┌─cluster──────┬─shard_num─┬─replica_num─┬─host_name────────────────────────────────────┐
+1. │ logs_cluster │         1 │           1 │ clickhouse-shard1-replica1.logplatform.local │
+2. │ logs_cluster │         1 │           2 │ clickhouse-shard1-replica2.logplatform.local │
+3. │ logs_cluster │         2 │           1 │ clickhouse-shard2-replica1.logplatform.local │
+4. │ logs_cluster │         2 │           2 │ clickhouse-shard2-replica2.logplatform.local │
+   └──────────────┴───────────┴─────────────┴──────────────────────────────────────────────┘
+~ $ curl -sf "http://${CH_HOST}:8123" \
+>   --user "default:${CH_PASSWORD}" \
+>   --data "SELECT count() as queue_size FROM system.replication_queue"
+0
+~ $   for r in shard1-replica1 shard1-replica2 shard2-replica1 shard2-replica2; do
+>     echo "--- ${r} ---"
+>     curl -sf "http://clickhouse-${r}.logplatform.local:8123" \
+>       --user "default:${CH_PASSWORD}" \
+>       --data "SELECT
+>         hostName() AS host,
+>         version() AS ver,
+>         formatReadableTimeDelta(uptime()) AS up,
+>         now() AS now
+>         FORMAT Vertical"
+>   done
+--- shard1-replica1 ---
+Row 1:
+──────
+host: ip-10-0-100-65.ap-northeast-1.compute.internal
+ver:  24.12.6.70
+up:   13 minutes and 59 seconds
+now:  2026-04-29 05:45:13
+--- shard1-replica2 ---
+Row 1:
+──────
+host: ip-10-0-101-135.ap-northeast-1.compute.internal
+ver:  24.12.6.70
+up:   1 hour, 9 minutes and 28 seconds
+now:  2026-04-29 05:45:13
+--- shard2-replica1 ---
+Row 1:
+──────
+host: ip-10-0-100-171.ap-northeast-1.compute.internal
+ver:  24.12.6.70
+up:   13 minutes and 46 seconds
+now:  2026-04-29 05:45:13
+--- shard2-replica2 ---
+Row 1:
+──────
+host: ip-10-0-101-231.ap-northeast-1.compute.internal
+ver:  24.12.6.70
+up:   1 hour, 9 minutes and 31 seconds
+now:  2026-04-29 05:45:13
+~ $   for r in shard1-replica1 shard1-replica2 shard2-replica1 shard2-replica2; do
+>     echo -n "${r}: "
+>     curl -sf "http://clickhouse-${r}.logplatform.local:8123" \
+>       --user "default:${CH_PASSWORD}" \
+>       --data "SELECT count() FROM system.distribution_queue WHERE is_blocked = 1"
+>   done
+shard1-replica1: 0
+shard1-replica2: 0
+shard2-replica1: 0
+shard2-replica2: 0
+~ $   for r in shard1-replica1 shard1-replica2 shard2-replica1 shard2-replica2; do
+>     echo "--- ${r} ---"
+>     curl -sf "http://clickhouse-${r}.logplatform.local:8123" \
+>       --user "default:${CH_PASSWORD}" \
+>       --data "SELECT replica_name, is_readonly, absolute_delay, queue_size, future_parts
+>               FROM system.replicas
+>               WHERE database='logs' AND table='logs_local'
+>               FORMAT Vertical"
+>   done
+--- shard1-replica1 ---
+--- shard1-replica2 ---
+Row 1:
+──────
+replica_name:   clickhouse-shard1-replica2
+is_readonly:    0
+absolute_delay: 0
+queue_size:     0
+future_parts:   0
+--- shard2-replica1 ---
+--- shard2-replica2 ---
+Row 1:
+──────
+replica_name:   clickhouse-shard2-replica2
+is_readonly:    0
+absolute_delay: 0
+queue_size:     0
+future_parts:   0
+~ $   aws ecs describe-services \
+>     --cluster logplatform-dev \
+>     --services logplatform-dev-ch-s1r1 logplatform-dev-ch-s1r2 \
+>                logplatform-dev-ch-s2r1 logplatform-dev-ch-s2r2 \
+>     --query 'services[].{name:serviceName,desired:desiredCount,running:runningCount,pending:pendingCount,events:events[0:2].message}' \
+>     --output json
+[
+    {
+        "name": "logplatform-dev-ch-s1r1",
+        "desired": 1,
+        "running": 1,
+        "pending": 0,
+        "events": [
+            "(service logplatform-dev-ch-s1r1) has reached a steady state.",
+            "(service logplatform-dev-ch-s1r1) registered 1 targets in (target-group arn:aws:elasticloadbalancing:ap-northeast-1:875033467243:targetgroup/logplatform-dev-ch-http/df7e9dd55efe038c)"
+        ]
+    },
+    {
+        "name": "logplatform-dev-ch-s1r2",
+        "desired": 1,
+        "running": 1,
+        "pending": 0,
+        "events": [
+            "(service logplatform-dev-ch-s1r2) has reached a steady state.",
+            "(service logplatform-dev-ch-s1r2) (deployment ecs-svc/7875261711197745578) deployment completed."
+        ]
+    },
+    {
+        "name": "logplatform-dev-ch-s2r1",
+        "desired": 1,
+        "running": 1,
+        "pending": 0,
+        "events": [
+            "(service logplatform-dev-ch-s2r1) has reached a steady state.",
+            "(service logplatform-dev-ch-s2r1) registered 1 targets in (target-group arn:aws:elasticloadbalancing:ap-northeast-1:875033467243:targetgroup/logplatform-dev-ch-http/df7e9dd55efe038c)"
+        ]
+    },
+    {
+        "name": "logplatform-dev-ch-s2r2",
+        "desired": 1,
+        "running": 1,
+        "pending": 0,
+        "events": [
+            "(service logplatform-dev-ch-s2r2) has reached a steady state.",
+            "(service logplatform-dev-ch-s2r2) (deployment ecs-svc/7948816816292475048) deployment completed."
+        ]
+    }
+]
+
+---
+
+echo "=== Keeper replicas registered for shard 01 ==="
+  curl -sf "http://clickhouse-shard1-replica2.logplatform.local:8123" \
+    --user "default:${CH_PASSWORD}" \
+    --data "SELECT name FROM system.zookeeper WHERE path='/clickhouse/tables/01/logs_local/replicas' FORMAT TabSeparated"
+
+---
+
+~ $ echo "=== s1r1 databases ==="
+=== s1r1 databases ===
+~ $   curl -sf "http://clickhouse-shard1-replica1.logplatform.local:8123" \
+>     --user "default:${CH_PASSWORD}" \
+>     --data "SELECT name FROM system.databases FORMAT TabSeparated"
+INFORMATION_SCHEMA
+default
+information_schema
+system
+~ $ 
+~ $   echo "=== s1r1 tables in logs ==="
+=== s1r1 tables in logs ===
+~ $   curl -sf "http://clickhouse-shard1-replica1.logplatform.local:8123" \
+>     --user "default:${CH_PASSWORD}" \
+>     --data "SELECT name FROM system.tables WHERE database='logs' FORMAT TabSeparated"
+~ $ 
+~ $   # s1r2（旧EC2、健全）と比較
+~ $   echo "=== s1r2 tables in logs ==="
+=== s1r2 tables in logs ===
+~ $   curl -sf "http://clickhouse-shard1-replica2.logplatform.local:8123" \
+>     --user "default:${CH_PASSWORD}" \
+>     --data "SELECT name FROM system.tables WHERE database='logs' FORMAT TabSeparated"
+logs
+logs_local
+~ $ echo "=== Keeper replicas registered for shard 01 ==="
+=== Keeper replicas registered for shard 01 ===
+~ $   curl -sf "http://clickhouse-shard1-replica2.logplatform.local:8123" \
+>     --user "default:${CH_PASSWORD}" \
+>     --data "SELECT name FROM system.zookeeper WHERE path='/clickhouse/tables/01/logs_local/replicas' FORMAT TabSeparated"
+clickhouse-shard1-replica1
+clickhouse-shard1-replica2
+~ $
+
+---
+
+/plan /var/lib/clickhouse を EBS に永続化（恒久解）を実施したいので設計して
+
+---
+
+Q1の案Bについて、どのようなメリット/デメリットがありますか? また、Q2について、ClickHouse への INSERT を停止できない想定なのですが、これは問題ないですか?
