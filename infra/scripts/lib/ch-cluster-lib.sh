@@ -7,21 +7,76 @@
 #   Env vars: DNS_SUFFIX, CH_PASSWORD, HEALTH_TIMEOUT, QUERY_DRAIN_TIMEOUT,
 #             REPLICATION_LAG_THRESHOLD
 
-# ClickHouse nodes keyed by short id (e.g. s1r1).
-# Callers: read CH_NODES / CH_ROUND_1 / CH_ROUND_2 via `"${CH_NODES[@]}"`
+# ClickHouse nodes keyed by short id (e.g. s1r1 = shard 1 replica 1).
+# Defaults to the canonical 2-shard / 2-replica layout. After cluster
+# expansion, callers should invoke `discover_ch_topology` with a live
+# coordinator FQDN to refresh these arrays from system.clusters.
 CH_NODES=(s1r1 s1r2 s2r1 s2r2)
 # Rolling order: update one replica per shard at a time to maintain availability
 CH_ROUND_1=(s1r1 s2r1)
 CH_ROUND_2=(s1r2 s2r2)
 
+# Map short id `s{N}r{M}` to FQDN. Pattern matches Terraform's service
+# discovery names (clickhouse-shard{N}-replica{M}.${DNS_SUFFIX}).
 ch_fqdn() {
   local node="$1"
-  case "${node}" in
-    s1r1) echo "clickhouse-shard1-replica1.${DNS_SUFFIX}" ;;
-    s1r2) echo "clickhouse-shard1-replica2.${DNS_SUFFIX}" ;;
-    s2r1) echo "clickhouse-shard2-replica1.${DNS_SUFFIX}" ;;
-    s2r2) echo "clickhouse-shard2-replica2.${DNS_SUFFIX}" ;;
-  esac
+  if [[ "${node}" =~ ^s([0-9]+)r([0-9]+)$ ]]; then
+    echo "clickhouse-shard${BASH_REMATCH[1]}-replica${BASH_REMATCH[2]}.${DNS_SUFFIX}"
+  fi
+}
+
+# Echo node ids belonging to a shard (one per line), based on CH_NODES.
+nodes_in_shard() {
+  local shard_num="$1"
+  local node
+  for node in "${CH_NODES[@]}"; do
+    if [[ "${node}" =~ ^s${shard_num}r[0-9]+$ ]]; then
+      echo "${node}"
+    fi
+  done
+}
+
+# Re-populate CH_NODES / CH_ROUND_1 / CH_ROUND_2 from a live `system.clusters`
+# query. Run AFTER finding a healthy coordinator. Returns non-zero if the
+# query fails — the caller decides whether to fall back to defaults.
+#
+# Round assignment: replica_num=1 → round 1, replica_num=2 → round 2.
+# Additional replicas (3+) are placed in round 2 with a warning since the
+# current architecture is 2-replica per shard.
+discover_ch_topology() {
+  local fqdn="$1"
+  local rows
+  if ! rows=$(ch_query_strict "${fqdn}" \
+    "SELECT shard_num, replica_num FROM system.clusters WHERE cluster='logs_cluster' ORDER BY shard_num, replica_num FORMAT TabSeparated"); then
+    return 1
+  fi
+
+  local -a new_nodes=()
+  local -a new_round1=()
+  local -a new_round2=()
+  while IFS=$'\t' read -r shard replica; do
+    [ -z "${shard}" ] && continue
+    local node="s${shard}r${replica}"
+    new_nodes+=("${node}")
+    if [ "${replica}" = "1" ]; then
+      new_round1+=("${node}")
+    elif [ "${replica}" = "2" ]; then
+      new_round2+=("${node}")
+    else
+      warn "Replica ${replica} of shard ${shard} placed in round 2 (only 2 rounds supported)"
+      new_round2+=("${node}")
+    fi
+  done <<< "${rows}"
+
+  if [ "${#new_nodes[@]}" -eq 0 ]; then
+    return 1
+  fi
+
+  CH_NODES=("${new_nodes[@]}")
+  CH_ROUND_1=("${new_round1[@]}")
+  CH_ROUND_2=("${new_round2[@]}")
+  info "Discovered topology: ${#CH_NODES[@]} nodes (${CH_NODES[*]})"
+  return 0
 }
 
 ch_query() {

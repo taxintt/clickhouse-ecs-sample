@@ -47,6 +47,26 @@ source "${SCRIPT_DIR}/lib/keeper-lib.sh"
 # shellcheck source=lib/ch-cluster-lib.sh
 source "${SCRIPT_DIR}/lib/ch-cluster-lib.sh"
 
+# Best-effort topology discovery so newly added shards (s3r1, s3r2, ...) are
+# also rolled. Uses s1r1 as bootstrap; on failure, the static defaults still
+# work for the canonical 2-shard layout.
+attempt_topology_discovery() {
+  if [ -z "${CH_PASSWORD}" ] || [ "${DRY_RUN}" = "true" ]; then
+    warn "Skipping topology discovery (CH_PASSWORD not set or DRY_RUN); using static node list."
+    return 0
+  fi
+  local boot_fqdn
+  boot_fqdn=$(ch_fqdn "s1r1")
+  if [ -z "${boot_fqdn}" ] || ! curl -sf "http://${boot_fqdn}:8123/ping" >/dev/null 2>&1; then
+    warn "Bootstrap node s1r1 unreachable; using static node list."
+    return 0
+  fi
+  if ! discover_ch_topology "${boot_fqdn}"; then
+    warn "Topology discovery failed; using static node list."
+  fi
+  return 0
+}
+
 ################################################################################
 # ECS operations
 ################################################################################
@@ -254,10 +274,12 @@ case "${TARGET}" in
     rolling_update_keeper
     ;;
   clickhouse)
+    attempt_topology_discovery
     rolling_update_clickhouse
     report_versions
     ;;
   all)
+    attempt_topology_discovery
     # Official docs: upgrade ClickHouse Server before Keeper
     # https://clickhouse.com/docs/jp/operations/update
     rolling_update_clickhouse

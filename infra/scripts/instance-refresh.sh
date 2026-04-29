@@ -64,6 +64,25 @@ source "${SCRIPT_DIR}/lib/ch-cluster-lib.sh"
 # shellcheck source=lib/asg-lib.sh
 source "${SCRIPT_DIR}/lib/asg-lib.sh"
 
+# Best-effort topology discovery so newly added shards (s3r1, s3r2, ...) are
+# also refreshed. On failure, falls back to the static 2-shard layout.
+attempt_topology_discovery() {
+  if [ -z "${CH_PASSWORD}" ] || [ "${DRY_RUN}" = "true" ]; then
+    warn "Skipping topology discovery (CH_PASSWORD not set or DRY_RUN); using static node list."
+    return 0
+  fi
+  local boot_fqdn
+  boot_fqdn=$(ch_fqdn "s1r1")
+  if [ -z "${boot_fqdn}" ] || ! curl -sf "http://${boot_fqdn}:8123/ping" >/dev/null 2>&1; then
+    warn "Bootstrap node s1r1 unreachable; using static node list."
+    return 0
+  fi
+  if ! discover_ch_topology "${boot_fqdn}"; then
+    warn "Topology discovery failed; using static node list."
+  fi
+  return 0
+}
+
 ################################################################################
 # ECS wait helpers
 ################################################################################
@@ -324,6 +343,7 @@ case "${TARGET}" in
     fi
     ;;
   clickhouse)
+    attempt_topology_discovery
     if [ -n "${ONLY_NODE}" ]; then
       refresh_clickhouse_single "${ONLY_NODE}"
     else
@@ -335,6 +355,7 @@ case "${TARGET}" in
     if [ -n "${ONLY_NODE}" ]; then
       abort "--only is not supported with target=all. Use 'clickhouse --only <node>' or 'keeper --only <id>'."
     fi
+    attempt_topology_discovery
     # Match rolling-update.sh ordering: ClickHouse before Keeper
     refresh_clickhouse_all
     refresh_keeper_all

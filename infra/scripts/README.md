@@ -458,6 +458,41 @@ aws autoscaling cancel-instance-refresh \
 
 ---
 
+## トポロジ自動discoveryと2レプリカ整合性ガード
+
+### CH_NODES の動的discovery
+
+`rolling-update.sh` / `instance-refresh.sh` / `rebalance-shard.sh` は起動時に `system.clusters` から実際のシャード/レプリカ構成を読み取り、`CH_NODES` / `CH_ROUND_1` / `CH_ROUND_2` を上書きする。これによりシャード追加（s3r1, s3r2 など）後も自動でカバーされる。
+
+- bootstrap: `s1r1` (canonical) で coordinator到達確認 → `discover_ch_topology` を呼び出し
+- 失敗時のフォールバック:
+  - `rolling-update.sh` / `instance-refresh.sh`: 静的デフォルト（s1r1〜s2r2）+ warning
+  - `rebalance-shard.sh`: **abort**（rebalance correctness が完全な topology に依存するため）
+- skip条件: `DRY_RUN=true` または `CH_PASSWORD` 未設定時は静的デフォルトを使用
+
+### `rebalance-shard.sh` の2レプリカ整合性ガード
+
+データ移動でレプリカ間の不整合に起因する**データロス**を防ぐため、`move_tenant` フローに以下を組み込んでいる:
+
+```
+[1] require_zero_lag_on_shard(src/dst)          # absolute_delay = 0 を全レプリカで確認
+[2] sync_all_replicas_for_shard(src)            # SYSTEM SYNC REPLICA を src の全レプリカに発行
+[3] copy_tenant: INSERT FROM cluster(...)       # insert_quorum=2 で dst 両レプリカ確定
+[4] sync_all_replicas_for_shard(src) + (dst)    # post-copy で再度全レプリカ同期
+[5] verify_tenant_counts(src, dst)              # 全レプリカで count() を取り、相互一致を確認
+[6] DELETE FROM src WHERE tid SETTINGS mutations_sync = 2
+```
+
+`verify_tenant_counts` は `src_shard` と `dst_shard` の **全レプリカ** に対して `count()` を実行し、
+
+1. src 内のレプリカ間で count が一致していること
+2. dst 内のレプリカ間で count が一致していること
+3. src と dst の count が一致していること
+
+の3条件を全て満たさない場合は dst 側の挿入をロールバックして abort する。これにより `cluster()` が片側レプリカのみから読んだ際の divergence をDELETE前に検出できる。
+
+---
+
 ## ライブラリ構成
 
 ```
