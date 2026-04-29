@@ -1,0 +1,23 @@
+{
+  "cli_version": "0.5.0",
+  "checkpoint_id": "570e788070ec",
+  "strategy": "manual-commit",
+  "branch": "feature/add-instance-refresh-and-rebalance-scripts",
+  "checkpoints_count": 1,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/57/0e788070ec/0/metadata.json",
+      "transcript": "/57/0e788070ec/0/full.jsonl",
+      "content_hash": "/57/0e788070ec/0/content_hash.txt",
+      "prompt": "/57/0e788070ec/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 7939,
+    "cache_creation_tokens": 2489011,
+    "cache_read_tokens": 38175396,
+    "output_tokens": 200518,
+    "api_call_count": 317
+  }
+}

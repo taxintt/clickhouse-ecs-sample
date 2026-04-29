@@ -1,0 +1,23 @@
+{
+  "cli_version": "0.5.0",
+  "checkpoint_id": "570e788070ec",
+  "session_id": "723ea1bc-12cd-4f11-a446-6c6846403022",
+  "strategy": "manual-commit",
+  "created_at": "2026-04-29T04:30:03.818259Z",
+  "branch": "feature/add-instance-refresh-and-rebalance-scripts",
+  "checkpoints_count": 1,
+  "files_touched": [],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-7[1m]",
+  "turn_id": "4003796b67ee",
+  "token_usage": {
+    "input_tokens": 7939,
+    "cache_creation_tokens": 2489011,
+    "cache_read_tokens": 38175396,
+    "output_tokens": 200518,
+    "api_call_count": 317
+  },
+  "session_metrics": {
+    "turn_count": 68
+  }
+}
