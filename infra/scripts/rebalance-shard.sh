@@ -223,14 +223,55 @@ reject_bad_tenant_ids() {
 }
 
 ################################################################################
-# Shard mapping
+# Shard mapping & per-shard replica safety
 ################################################################################
 
-# Map shard_num (1-based from system.clusters) to one representative node id.
-# Matches the s{N}r{M} naming convention used across the cluster.
+# Map shard_num to one representative node id. Used when a single endpoint
+# is needed (e.g. coordinating an INSERT or DELETE — ReplicatedMergeTree
+# replicates the write to siblings).
 shard_representative_node() {
   local shard_num="$1"
   echo "s${shard_num}r1"
+}
+
+# Abort if any replica of the given shard has non-zero replication lag.
+# Required before destructive operations: cluster() reads from one replica
+# per shard, so unreplicated rows on the other replica would be missed,
+# leading to under-copy + DELETE = data loss.
+require_zero_lag_on_shard() {
+  local shard_num="$1"
+  local node
+  while IFS= read -r node; do
+    [ -z "${node}" ] && continue
+    local fqdn
+    fqdn=$(ch_fqdn "${node}")
+    local lag
+    if ! lag=$(ch_query_strict "${fqdn}" \
+      "SELECT toUInt32(coalesce(max(absolute_delay), 0)) FROM system.replicas WHERE database = '${DATABASE}' AND table = '${TABLE}'"); then
+      abort "Could not check replication lag on ${node}"
+    fi
+    if [ "${lag}" -gt 0 ]; then
+      abort "Replica ${node} has lag=${lag}s for ${DATABASE}.${TABLE}. Wait for replication or run SYSTEM SYNC REPLICA."
+    fi
+  done < <(nodes_in_shard "${shard_num}")
+}
+
+# SYSTEM SYNC REPLICA on every replica of the shard (not just the
+# representative). Needed before reading via cluster() and before count
+# verification so all replicas observe the same data.
+sync_all_replicas_for_shard() {
+  local shard_num="$1"
+  local node
+  while IFS= read -r node; do
+    [ -z "${node}" ] && continue
+    local fqdn
+    fqdn=$(ch_fqdn "${node}")
+    info "  SYSTEM SYNC REPLICA on ${node}"
+    if ! ch_query_strict "${fqdn}" \
+      "SYSTEM SYNC REPLICA ${DATABASE}.${TABLE}" >/dev/null; then
+      warn "SYNC REPLICA failed on ${node}"
+    fi
+  done < <(nodes_in_shard "${shard_num}")
 }
 
 ################################################################################
@@ -332,15 +373,32 @@ move_tenant() {
   info "Moving tenant='${tenant_id}' shard ${src_shard} -> ${dst_shard} (~${expected_rows} rows)"
 
   if [ "${DRY_RUN}" = "true" ]; then
+    info "[DRY RUN] Would assert lag=0 on src/dst shards"
+    info "[DRY RUN] Would SYNC all replicas of shard ${src_shard} (pre-copy)"
     info "[DRY RUN] Would INSERT via cluster() into shard ${dst_shard} with insert_quorum=2"
-    info "[DRY RUN] Would SYSTEM SYNC REPLICA on shard ${src_shard}"
+    info "[DRY RUN] Would SYNC all replicas of shards ${src_shard} and ${dst_shard} (post-copy)"
+    info "[DRY RUN] Would verify counts on ALL replicas of src and dst"
     info "[DRY RUN] Would DELETE tenant from shard ${src_shard} with mutations_sync=2"
     return 0
   fi
 
+  # Lag guards: cluster() reads from one replica per shard; if replicas have
+  # diverged, the copy would be incomplete. Refuse to proceed until both
+  # shards are caught up.
+  require_zero_lag_on_shard "${src_shard}"
+  require_zero_lag_on_shard "${dst_shard}"
+
+  # Pre-copy sync ensures the chosen src replica has all data that may have
+  # been written to its peer.
+  sync_all_replicas_for_shard "${src_shard}"
+
   copy_tenant "${tenant_id}" "${src_shard}" "${dst_shard}" "${dst_fqdn}"
-  sync_replicas_for_shard "${src_shard}"
-  verify_tenant_counts "${tenant_id}" "${src_fqdn}" "${dst_fqdn}"
+
+  # Post-copy sync so verify_tenant_counts sees the same data on every replica.
+  sync_all_replicas_for_shard "${src_shard}"
+  sync_all_replicas_for_shard "${dst_shard}"
+
+  verify_tenant_counts "${tenant_id}" "${src_shard}" "${dst_shard}"
   delete_tenant_from_source "${tenant_id}" "${src_fqdn}"
 }
 
@@ -369,48 +427,74 @@ SETTINGS insert_quorum = 2, insert_quorum_parallel = 0, insert_quorum_timeout = 
   fi
 }
 
-# Wait for all replicas on a shard to observe the latest data so the subsequent
-# count verification and DELETE see a consistent view.
-sync_replicas_for_shard() {
+# Count tenant rows on every replica of a shard. Echoes one count per replica
+# (one per line, in CH_NODES order). Caller compares for inter-replica
+# consistency.
+count_tenant_per_replica() {
   local shard_num="$1"
+  local tenant_id="$2"
   local node
-  node=$(shard_representative_node "${shard_num}")
-  local fqdn
-  fqdn=$(ch_fqdn "${node}")
-  info "  SYSTEM SYNC REPLICA on shard ${shard_num} (${fqdn})"
-  if ! ch_query_strict "${fqdn}" \
-    "SYSTEM SYNC REPLICA ${DATABASE}.${TABLE}" >/dev/null; then
-    warn "SYNC REPLICA failed on shard ${shard_num} — proceeding with caution"
-  fi
+  while IFS= read -r node; do
+    [ -z "${node}" ] && continue
+    local fqdn
+    fqdn=$(ch_fqdn "${node}")
+    local count
+    if ! count=$(ch_query_param "${fqdn}" \
+      "SELECT count() FROM ${DATABASE}.${TABLE} WHERE ${TENANT_COLUMN} = {tid:String}" \
+      "tid" "${tenant_id}"); then
+      abort "Failed to count rows on ${node} for tenant='${tenant_id}'"
+    fi
+    echo "${node} ${count}"
+  done < <(nodes_in_shard "${shard_num}")
 }
 
+# Verify all replicas of src and dst agree on the tenant's row count, AND the
+# src/dst totals match. Avoids the single-replica blindspot where a divergent
+# peer replica would slip past unnoticed and lose data on DELETE.
 verify_tenant_counts() {
   local tenant_id="$1"
-  local src_fqdn="$2"
-  local dst_fqdn="$3"
+  local src_shard="$2"
+  local dst_shard="$3"
 
-  local src_count
-  if ! src_count=$(ch_query_param "${src_fqdn}" \
-    "SELECT count() FROM ${DATABASE}.${TABLE} WHERE ${TENANT_COLUMN} = {tid:String}" \
-    "tid" "${tenant_id}"); then
-    abort "Failed to count source rows for tenant='${tenant_id}'"
-  fi
-  local dst_count
-  if ! dst_count=$(ch_query_param "${dst_fqdn}" \
-    "SELECT count() FROM ${DATABASE}.${TABLE} WHERE ${TENANT_COLUMN} = {tid:String}" \
-    "tid" "${tenant_id}"); then
-    abort "Failed to count destination rows for tenant='${tenant_id}'"
-  fi
+  local src_canonical=""
+  local src_pairs
+  src_pairs=$(count_tenant_per_replica "${src_shard}" "${tenant_id}")
+  while IFS=' ' read -r node count; do
+    [ -z "${node}" ] && continue
+    if [ -z "${src_canonical}" ]; then
+      src_canonical="${count}"
+    elif [ "${count}" != "${src_canonical}" ]; then
+      abort "Source replicas disagree on count for tenant='${tenant_id}' (${node}=${count} vs ${src_canonical}). Replicas must be in sync."
+    fi
+  done <<< "${src_pairs}"
 
-  if [ "${src_count}" != "${dst_count}" ]; then
-    # Rollback: remove what we inserted on the destination.
-    warn "Row count mismatch (src=${src_count}, dst=${dst_count}). Rolling back destination insert."
-    ch_query_param "${dst_fqdn}" \
-      "DELETE FROM ${DATABASE}.${TABLE} WHERE ${TENANT_COLUMN} = {tid:String} SETTINGS mutations_sync = 2" \
-      "tid" "${tenant_id}" || true
+  local dst_canonical=""
+  local dst_pairs
+  dst_pairs=$(count_tenant_per_replica "${dst_shard}" "${tenant_id}")
+  while IFS=' ' read -r node count; do
+    [ -z "${node}" ] && continue
+    if [ -z "${dst_canonical}" ]; then
+      dst_canonical="${count}"
+    elif [ "${count}" != "${dst_canonical}" ]; then
+      abort "Destination replicas disagree on count for tenant='${tenant_id}' (${node}=${count} vs ${dst_canonical})."
+    fi
+  done <<< "${dst_pairs}"
+
+  if [ "${src_canonical}" != "${dst_canonical}" ]; then
+    # Rollback: remove what we inserted on the destination shard.
+    warn "Row count mismatch for tenant='${tenant_id}' (src=${src_canonical}, dst=${dst_canonical}). Rolling back destination insert."
+    local first_dst
+    first_dst=$(nodes_in_shard "${dst_shard}" | head -n 1)
+    if [ -n "${first_dst}" ]; then
+      local dst_fqdn
+      dst_fqdn=$(ch_fqdn "${first_dst}")
+      ch_query_param "${dst_fqdn}" \
+        "DELETE FROM ${DATABASE}.${TABLE} WHERE ${TENANT_COLUMN} = {tid:String} SETTINGS mutations_sync = 2" \
+        "tid" "${tenant_id}" || true
+    fi
     abort "Rollback complete. Re-run after investigating source data."
   fi
-  info "  verified: src=${src_count} dst=${dst_count}"
+  info "  verified: src=${src_canonical} dst=${dst_canonical} (all replicas consistent)"
 }
 
 # Lightweight DELETE with mutations_sync=2: return only after both source
@@ -492,6 +576,15 @@ echo ""
 check_keeper_quorum
 COORD_FQDN=$(pick_coordinator_fqdn)
 info "Using coordinator: ${COORD_FQDN}"
+
+# Refresh CH_NODES / CH_ROUND_* from the live cluster so per-shard helpers
+# (nodes_in_shard, require_zero_lag_on_shard, sync_all_replicas_for_shard,
+# verify_tenant_counts) cover any newly added shards. Aborts on failure
+# because rebalance correctness depends on a complete topology.
+if ! discover_ch_topology "${COORD_FQDN}"; then
+  abort "Topology discovery failed against ${COORD_FQDN}. Cannot proceed without an accurate node list."
+fi
+
 verify_cluster_topology "${COORD_FQDN}"
 verify_sharding_key "${COORD_FQDN}"
 reject_bad_tenant_ids "${COORD_FQDN}"
