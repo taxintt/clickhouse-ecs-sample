@@ -409,6 +409,35 @@ aws ecs describe-services \
   ./infra/scripts/instance-refresh.sh clickhouse --only s1r1
   ```
 
+### 7.1b instance-refresh が 0% のまま進まない
+
+```
+"Reason": "<instance-id> is protected. Remove instance scale-in protection to continue."
+```
+
+**原因:** ASG の `protect_from_scale_in = true` で既存インスタンスがprotectedになっており、min=max=1 の ASG はスケールイン経由でしか旧インスタンスを除去できないため、refresh が永続的にブロックされる。
+
+**現スクリプトの対応:** `disable_scale_in_protection` を `start_instance_refresh` の直前に呼び、対象インスタンスのみ一時的に protection を解除する。新インスタンスは ASG の `NewInstancesProtectedFromScaleIn=true` を継承して自動的に protected になるため後処理は不要。
+
+**手動で復旧する場合（古いスクリプトでブロックされた）:**
+```bash
+# 1. refresh をキャンセル
+aws autoscaling cancel-instance-refresh --auto-scaling-group-name logplatform-dev-ch-s1r1
+aws autoscaling cancel-instance-refresh --auto-scaling-group-name logplatform-dev-ch-s2r1
+
+# 2. SYSTEM STOP DISTRIBUTED SENDS を戻す（exclude_from_clusterの後始末）
+for fqdn in clickhouse-shard1-replica1.logplatform.local clickhouse-shard2-replica1.logplatform.local; do
+  curl -sf "http://${fqdn}:8123" --user "default:${CH_PASSWORD}" \
+    --data "SYSTEM START DISTRIBUTED SENDS"
+done
+
+# 3. クラスタ健全性確認
+for r in shard1-replica1 shard1-replica2 shard2-replica1 shard2-replica2; do
+  curl -sf "http://clickhouse-${r}.logplatform.local:8123" --user "default:${CH_PASSWORD}" \
+    --data "SELECT replica_name, is_readonly, absolute_delay FROM system.replicas WHERE database='logs' AND table='logs_local' FORMAT Vertical"
+done
+```
+
 ### 7.2 rebalance 中に readonly replica が出た
 
 Keeper への書き込みが詰まると ReplicatedMergeTree が一時的に readonly になる。

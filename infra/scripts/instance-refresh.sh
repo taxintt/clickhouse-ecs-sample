@@ -114,6 +114,9 @@ refresh_keeper_node() {
   old_instance_id=$(get_asg_instance_id "${asg_name}" || echo "")
   info "Current instance: ${old_instance_id:-<none>}"
 
+  # ASG protect_from_scale_in=true blocks instance-refresh; unprotect first.
+  disable_scale_in_protection "${asg_name}" "${old_instance_id}"
+
   local refresh_id
   refresh_id=$(start_instance_refresh "${asg_name}")
   info "Started instance refresh: ${refresh_id}"
@@ -185,11 +188,16 @@ refresh_clickhouse_round() {
 
   # Start instance refresh on all nodes in this round in parallel.
   # Each ASG has its own refresh; we block until all complete.
+  # Disable scale-in protection on the existing instance first
+  # (otherwise refresh stalls at 0% on protected instances).
   local -a refresh_ids=()
   for node in "${nodes[@]}"; do
     local asg_name
     asg_name=$(asg_name_for_ch_node "${node}")
-    info "Starting refresh on ${node} (asg=${asg_name})"
+    local old_instance_id
+    old_instance_id=$(get_asg_instance_id "${asg_name}" || echo "")
+    info "Starting refresh on ${node} (asg=${asg_name}, old=${old_instance_id:-<none>})"
+    disable_scale_in_protection "${asg_name}" "${old_instance_id}"
     local refresh_id
     refresh_id=$(start_instance_refresh "${asg_name}")
     refresh_ids+=("${refresh_id}")

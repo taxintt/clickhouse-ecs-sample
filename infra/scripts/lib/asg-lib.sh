@@ -28,8 +28,38 @@ get_asg_instance_id() {
     --output text 2>/dev/null | awk '{print $1}'
 }
 
+# Temporarily disable scale-in protection on the existing instance so
+# instance-refresh can terminate it. With min=max=desired=1 ASGs, refresh
+# must scale down to 0 before launching the replacement; scale-in protection
+# blocks that step indefinitely (status sits at 0% with reason
+# "is protected. Remove instance scale-in protection to continue.").
+#
+# The new instance launched after refresh inherits the ASG's
+# NewInstancesProtectedFromScaleIn=true setting automatically, so no
+# re-protection step is required.
+disable_scale_in_protection() {
+  local asg_name="$1"
+  local instance_id="$2"
+  if [ -z "${instance_id}" ] || [ "${instance_id}" = "None" ]; then
+    warn "No instance to unprotect on ${asg_name} (instance_id empty)"
+    return 0
+  fi
+  if dry_run_guard "set-instance-protection --no-protected-from-scale-in ${instance_id} (asg=${asg_name})"; then
+    return 0
+  fi
+  info "Disabling scale-in protection on ${instance_id} (so refresh can terminate it)"
+  aws autoscaling set-instance-protection \
+    --instance-ids "${instance_id}" \
+    --auto-scaling-group-name "${asg_name}" \
+    --no-protected-from-scale-in \
+    --region "${AWS_REGION}" \
+    --no-cli-pager > /dev/null
+}
+
 # Kicks off an ASG instance-refresh and echoes the refresh ID.
 # Uses MinHealthyPercentage=0 because each ASG runs a single instance.
+# Caller MUST disable_scale_in_protection on the existing instance first
+# (otherwise refresh stalls at 0% — see disable_scale_in_protection above).
 start_instance_refresh() {
   local asg_name="$1"
   if dry_run_guard "aws autoscaling start-instance-refresh --auto-scaling-group-name ${asg_name}"; then
