@@ -27,8 +27,10 @@ CREATE DATABASE IF NOT EXISTS otel ON CLUSTER 'logs_cluster';
 CREATE TABLE IF NOT EXISTS otel.otel_logs_local ON CLUSTER 'logs_cluster'
 (
     `Timestamp`          DateTime64(9) CODEC(Delta(8), ZSTD(1)),
-    `TraceId`            String CODEC(ZSTD(1)),
-    `SpanId`             String CODEC(ZSTD(1)),
+    -- TraceId/SpanId are fixed-length hex per OTel spec (32/16 chars);
+    -- FixedString cuts both storage and per-row overhead.
+    `TraceId`            FixedString(32) CODEC(ZSTD(1)),
+    `SpanId`             FixedString(16) CODEC(ZSTD(1)),
     `TraceFlags`         UInt8  CODEC(ZSTD(1)),
     `SeverityText`       LowCardinality(String) CODEC(ZSTD(1)),
     `SeverityNumber`     UInt8  CODEC(ZSTD(1)),
@@ -44,17 +46,27 @@ CREATE TABLE IF NOT EXISTS otel.otel_logs_local ON CLUSTER 'logs_cluster'
 
     -- Hoist hot ResourceAttributes keys to dedicated columns so equality
     -- filters and group-bys skip Map lookup overhead.
+    --
+    -- The four below are examples tuned for a Kubernetes deployment.
+    -- `Environment` and `HostName` apply to most OTel deployments;
+    -- `Namespace` is k8s-specific (will be empty on EC2/Lambda/on-prem).
+    -- Replace or extend with the hot keys for your environment
+    -- (e.g. `aws.region`, `faas.name`, `service.namespace`).
+    -- k8s.pod.name is intentionally NOT hoisted: pod names regenerate on
+    -- every restart and overflow LowCardinality's dictionary.
     `Namespace`   LowCardinality(String) MATERIALIZED ResourceAttributes['k8s.namespace.name'],
-    `PodName`     LowCardinality(String) MATERIALIZED ResourceAttributes['k8s.pod.name'],
     `Environment` LowCardinality(String) MATERIALIZED ResourceAttributes['deployment.environment'],
     `HostName`    LowCardinality(String) MATERIALIZED ResourceAttributes['host.name'],
 
-    -- TraceId/SpanId are intentionally NOT in ORDER BY (most logs have no
-    -- TraceId; putting it in the sort key would clump empty-TraceId rows on
-    -- a hash collision). bloom_filter skip index handles trace lookups.
-    INDEX idx_trace_id    TraceId TYPE bloom_filter(0.001)     GRANULARITY 1,
-    INDEX idx_span_id     SpanId  TYPE bloom_filter(0.001)     GRANULARITY 1,
-    INDEX idx_body_tokens Body    TYPE tokenbf_v1(32768, 3, 0) GRANULARITY 1,
+    -- TraceId is intentionally NOT in ORDER BY (most logs have no TraceId;
+    -- putting it in the sort key would clump empty-TraceId rows together).
+    -- The bloom_filter skip index handles trace lookups.
+    INDEX idx_trace_id    TraceId        TYPE bloom_filter(0.001)     GRANULARITY 1,
+    -- SeverityNumber stays out of ORDER BY (would block time-series order
+    -- inside each hour bucket). minmax granule pruning is enough for
+    -- common severity-range filters like `SeverityNumber >= 17`.
+    INDEX idx_severity    SeverityNumber TYPE minmax                  GRANULARITY 1,
+    INDEX idx_body_tokens Body           TYPE tokenbf_v1(32768, 3, 0) GRANULARITY 1,
     INDEX idx_res_keys    mapKeys(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
     INDEX idx_log_keys    mapKeys(LogAttributes)      TYPE bloom_filter(0.01) GRANULARITY 1
 )
@@ -64,14 +76,17 @@ ENGINE = ReplicatedMergeTree(
 )
 PARTITION BY toDate(Timestamp)
 -- Keys reflect log workloads: ServiceName narrows tenant, hour bucket
--- prunes time ranges, SeverityNumber sorts log levels (the dominant log
--- filter), Timestamp orders within. PRIMARY KEY is a short prefix to keep
--- the sparse index compact.
+-- prunes time ranges, Timestamp orders rows in time-series order within
+-- the hour. PRIMARY KEY is a short prefix to keep the sparse index small.
 PRIMARY KEY (ServiceName, toStartOfHour(Timestamp))
-ORDER BY    (ServiceName, toStartOfHour(Timestamp), SeverityNumber, Timestamp)
+ORDER BY    (ServiceName, toStartOfHour(Timestamp), Timestamp)
 SETTINGS
     storage_policy            = 's3_policy',
     index_granularity         = 8192,
+    -- Insurance against ERROR rows that carry multi-KB stack traces:
+    -- without an explicit byte cap, a burst of large Body rows can split
+    -- granules unpredictably. 64 MiB matches Langfuse v4's setting.
+    index_granularity_bytes   = 67108864,
     prewarm_mark_cache        = 1,
     prewarm_primary_key_cache = 1;
 
