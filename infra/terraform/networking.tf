@@ -66,24 +66,33 @@ resource "aws_security_group" "keeper" {
   lifecycle { create_before_destroy = true }
 }
 
-resource "aws_security_group" "alb" {
-  name_prefix = "${local.name_prefix}-alb-"
-  description = "Security group for Application Load Balancer"
+resource "aws_security_group" "nlb" {
+  name_prefix = "${local.name_prefix}-nlb-"
+  description = "Security group for Network Load Balancer"
   vpc_id      = module.vpc.vpc_id
-  tags        = { Name = "${local.name_prefix}-alb-sg" }
+  tags        = { Name = "${local.name_prefix}-nlb-sg" }
 
   lifecycle { create_before_destroy = true }
 }
 
 # --- ClickHouse SG rules ---
 
-resource "aws_vpc_security_group_ingress_rule" "ch_http_from_alb" {
+resource "aws_vpc_security_group_ingress_rule" "ch_http_from_nlb" {
   security_group_id            = aws_security_group.clickhouse.id
-  description                  = "HTTP API from ALB"
+  description                  = "HTTP API from NLB"
   from_port                    = 8123
   to_port                      = 8123
   ip_protocol                  = "tcp"
-  referenced_security_group_id = aws_security_group.alb.id
+  referenced_security_group_id = aws_security_group.nlb.id
+}
+
+resource "aws_vpc_security_group_ingress_rule" "ch_native_from_nlb" {
+  security_group_id            = aws_security_group.clickhouse.id
+  description                  = "Native protocol from NLB"
+  from_port                    = 9000
+  to_port                      = 9000
+  ip_protocol                  = "tcp"
+  referenced_security_group_id = aws_security_group.nlb.id
 }
 
 resource "aws_vpc_security_group_ingress_rule" "ch_http_self" {
@@ -182,19 +191,28 @@ resource "aws_vpc_security_group_egress_rule" "keeper_all" {
   cidr_ipv4         = "0.0.0.0/0"
 }
 
-# --- ALB SG rules ---
+# --- NLB SG rules ---
 
-resource "aws_vpc_security_group_ingress_rule" "alb_http" {
-  security_group_id = aws_security_group.alb.id
-  description       = "HTTP from VPC"
+resource "aws_vpc_security_group_ingress_rule" "nlb_http" {
+  security_group_id = aws_security_group.nlb.id
+  description       = "HTTP API listener from VPC"
   from_port         = 80
   to_port           = 80
   ip_protocol       = "tcp"
   cidr_ipv4         = var.vpc_cidr
 }
 
-resource "aws_vpc_security_group_egress_rule" "alb_all" {
-  security_group_id = aws_security_group.alb.id
+resource "aws_vpc_security_group_ingress_rule" "nlb_native" {
+  security_group_id = aws_security_group.nlb.id
+  description       = "Native protocol listener from VPC"
+  from_port         = 9000
+  to_port           = 9000
+  ip_protocol       = "tcp"
+  cidr_ipv4         = var.vpc_cidr
+}
+
+resource "aws_vpc_security_group_egress_rule" "nlb_all" {
+  security_group_id = aws_security_group.nlb.id
   ip_protocol       = "-1"
   cidr_ipv4         = "0.0.0.0/0"
 }
@@ -237,4 +255,3 @@ resource "aws_vpc_security_group_ingress_rule" "ch_native_from_cloudshell" {
   ip_protocol                  = "tcp"
   referenced_security_group_id = aws_security_group.cloudshell.id
 }
-

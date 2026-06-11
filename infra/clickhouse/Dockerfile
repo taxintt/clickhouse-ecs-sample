@@ -1,4 +1,4 @@
-FROM clickhouse/clickhouse-server:24.12-alpine
+FROM clickhouse/clickhouse-server:26.3-alpine
 
 # Remove docker_related_config to prevent listen_host conflicts
 RUN rm -f /etc/clickhouse-server/config.d/docker_related_config.xml
@@ -28,7 +28,7 @@ RUN chmod +x /entrypoint-wrapper.sh
 ENTRYPOINT ["/entrypoint-wrapper.sh"]
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 --start-period=60s \
     CMD wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1
 
 EXPOSE 8123 9000 9009 9363
