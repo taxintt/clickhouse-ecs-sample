@@ -1,6 +1,22 @@
 -- OTel Logs tables for S3 storage cost estimation
--- Based on: https://clickhouse.com/docs/jp/use-cases/observability/schema-design
--- Adapted for ReplicatedMergeTree + Distributed on logs_cluster
+-- Base: https://clickhouse.com/docs/jp/use-cases/observability/schema-design
+--
+-- This schema reflects ClickHouse OTel best practice with several refinements
+-- inspired by Langfuse v4's observation-centric write-up
+-- ( https://tubone-project24.xyz/2026/05/02/langfuse-v4-observation-centric-clickhouse-deep-dive/ ).
+--
+-- Note: not every Langfuse v4 optimization carries over to logs. Trace-
+-- coherence tricks (xxHash32(TraceId) in ORDER BY, SAMPLE BY trace,
+-- cityHash64(TraceId) sharding, an events_core-style preview MV) assume
+--   * trace_id is populated on 100% of rows
+--   * payloads are MB-scale
+--   * trace-1-tree views are the dominant UI pattern
+-- All three break for OTel logs (most logs have no trace_id, Body is KB-
+-- scale, severity-filtered time-window queries dominate). Those tricks are
+-- intentionally NOT applied here. What we keep are the v4 takeaways that
+-- stand alone for logs too: skip indexes, narrow integer types,
+-- LowCardinality coverage, MATERIALIZED columns hoisting hot Map keys,
+-- prewarm caches, and ZooKeeper path templating.
 
 CREATE DATABASE IF NOT EXISTS otel ON CLUSTER 'logs_cluster';
 
@@ -11,51 +27,76 @@ CREATE DATABASE IF NOT EXISTS otel ON CLUSTER 'logs_cluster';
 CREATE TABLE IF NOT EXISTS otel.otel_logs_local ON CLUSTER 'logs_cluster'
 (
     `Timestamp`          DateTime64(9) CODEC(Delta(8), ZSTD(1)),
-    `TraceId`            String CODEC(ZSTD(1)),
-    `SpanId`             String CODEC(ZSTD(1)),
-    `TraceFlags`         UInt32 CODEC(ZSTD(1)),
+    -- TraceId/SpanId are fixed-length hex per OTel spec (32/16 chars);
+    -- FixedString cuts both storage and per-row overhead.
+    `TraceId`            FixedString(32) CODEC(ZSTD(1)),
+    `SpanId`             FixedString(16) CODEC(ZSTD(1)),
+    `TraceFlags`         UInt8  CODEC(ZSTD(1)),
     `SeverityText`       LowCardinality(String) CODEC(ZSTD(1)),
-    `SeverityNumber`     Int32 CODEC(ZSTD(1)),
+    `SeverityNumber`     UInt8  CODEC(ZSTD(1)),
     `ServiceName`        LowCardinality(String) CODEC(ZSTD(1)),
-    `Body`               String CODEC(ZSTD(1)),
-    `ResourceSchemaUrl`  String CODEC(ZSTD(1)),
+    `Body`               String CODEC(ZSTD(3)),
+    `ResourceSchemaUrl`  LowCardinality(String) CODEC(ZSTD(1)),
     `ResourceAttributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-    `ScopeSchemaUrl`     String CODEC(ZSTD(1)),
-    `ScopeName`          String CODEC(ZSTD(1)),
-    `ScopeVersion`       String CODEC(ZSTD(1)),
+    `ScopeSchemaUrl`     LowCardinality(String) CODEC(ZSTD(1)),
+    `ScopeName`          LowCardinality(String) CODEC(ZSTD(1)),
+    `ScopeVersion`       LowCardinality(String) CODEC(ZSTD(1)),
     `ScopeAttributes`    Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-    `LogAttributes`      Map(LowCardinality(String), String) CODEC(ZSTD(1))
+    `LogAttributes`      Map(LowCardinality(String), String) CODEC(ZSTD(1)),
+
+    -- Hoist hot ResourceAttributes keys to dedicated columns so equality
+    -- filters and group-bys skip Map lookup overhead.
+    --
+    -- The four below are examples tuned for a Kubernetes deployment.
+    -- `Environment` and `HostName` apply to most OTel deployments;
+    -- `Namespace` is k8s-specific (will be empty on EC2/Lambda/on-prem).
+    -- Replace or extend with the hot keys for your environment
+    -- (e.g. `aws.region`, `faas.name`, `service.namespace`).
+    -- k8s.pod.name is intentionally NOT hoisted: pod names regenerate on
+    -- every restart and overflow LowCardinality's dictionary.
+    `Namespace`   LowCardinality(String) MATERIALIZED ResourceAttributes['k8s.namespace.name'],
+    `Environment` LowCardinality(String) MATERIALIZED ResourceAttributes['deployment.environment'],
+    `HostName`    LowCardinality(String) MATERIALIZED ResourceAttributes['host.name'],
+
+    -- TraceId is intentionally NOT in ORDER BY (most logs have no TraceId;
+    -- putting it in the sort key would clump empty-TraceId rows together).
+    -- The bloom_filter skip index handles trace lookups.
+    INDEX idx_trace_id    TraceId        TYPE bloom_filter(0.001)     GRANULARITY 1,
+    -- SeverityNumber stays out of ORDER BY (would block time-series order
+    -- inside each hour bucket). minmax granule pruning is enough for
+    -- common severity-range filters like `SeverityNumber >= 17`.
+    INDEX idx_severity    SeverityNumber TYPE minmax                  GRANULARITY 1,
+    INDEX idx_body_tokens Body           TYPE tokenbf_v1(32768, 3, 0) GRANULARITY 1,
+    INDEX idx_res_keys    mapKeys(ResourceAttributes) TYPE bloom_filter(0.01) GRANULARITY 1,
+    INDEX idx_log_keys    mapKeys(LogAttributes)      TYPE bloom_filter(0.01) GRANULARITY 1
 )
 ENGINE = ReplicatedMergeTree(
-    '/clickhouse/tables/{shard}/otel_logs_local',
+    '/clickhouse/tables/{shard}/{database}/{table}',
     '{replica}'
 )
 PARTITION BY toDate(Timestamp)
-ORDER BY (ServiceName, SeverityText, toUnixTimestamp(Timestamp), TraceId)
+-- Keys reflect log workloads: ServiceName narrows tenant, hour bucket
+-- prunes time ranges, Timestamp orders rows in time-series order within
+-- the hour. PRIMARY KEY is a short prefix to keep the sparse index small.
+PRIMARY KEY (ServiceName, toStartOfHour(Timestamp))
+ORDER BY    (ServiceName, toStartOfHour(Timestamp), Timestamp)
 SETTINGS
-    storage_policy = 's3_policy',
-    index_granularity = 8192;
+    storage_policy            = 's3_policy',
+    index_granularity         = 8192,
+    -- Insurance against ERROR rows that carry multi-KB stack traces:
+    -- without an explicit byte cap, a burst of large Body rows can split
+    -- granules unpredictably. 64 MiB matches Langfuse v4's setting.
+    index_granularity_bytes   = 67108864,
+    prewarm_mark_cache        = 1,
+    prewarm_primary_key_cache = 1;
 
 -- =============================================================================
--- otel_logs: Distributed table
+-- otel_logs: Distributed table over otel_logs_local
+-- Sharded by rand() rather than by TraceId hash: a non-trivial fraction of
+-- logs have no TraceId and would all collide on one shard under a hash
+-- scheme. Trace lookups rely on the per-shard bloom_filter index.
 -- =============================================================================
 
 CREATE TABLE IF NOT EXISTS otel.otel_logs ON CLUSTER 'logs_cluster'
-(
-    `Timestamp`          DateTime64(9) CODEC(Delta(8), ZSTD(1)),
-    `TraceId`            String CODEC(ZSTD(1)),
-    `SpanId`             String CODEC(ZSTD(1)),
-    `TraceFlags`         UInt32 CODEC(ZSTD(1)),
-    `SeverityText`       LowCardinality(String) CODEC(ZSTD(1)),
-    `SeverityNumber`     Int32 CODEC(ZSTD(1)),
-    `ServiceName`        LowCardinality(String) CODEC(ZSTD(1)),
-    `Body`               String CODEC(ZSTD(1)),
-    `ResourceSchemaUrl`  String CODEC(ZSTD(1)),
-    `ResourceAttributes` Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-    `ScopeSchemaUrl`     String CODEC(ZSTD(1)),
-    `ScopeName`          String CODEC(ZSTD(1)),
-    `ScopeVersion`       String CODEC(ZSTD(1)),
-    `ScopeAttributes`    Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-    `LogAttributes`      Map(LowCardinality(String), String) CODEC(ZSTD(1))
-)
+AS otel.otel_logs_local
 ENGINE = Distributed('logs_cluster', 'otel', 'otel_logs_local', rand());
