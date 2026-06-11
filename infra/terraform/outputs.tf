@@ -26,8 +26,14 @@ output "kinesis_stream_name" {
   value = aws_kinesis_stream.logs.name
 }
 
-output "alb_dns_name" {
-  value = aws_lb.alb.dns_name
+output "nlb_dns_name" {
+  description = "NLB DNS name (HTTP API: port 80, Native Protocol: port 9000)"
+  value       = aws_lb.nlb.dns_name
+}
+
+output "clickhouse_native_endpoint" {
+  description = "ClickHouse native protocol endpoint (port 9000)"
+  value       = "${aws_lb.nlb.dns_name}:9000"
 }
 
 output "cloudshell_security_group_id" {

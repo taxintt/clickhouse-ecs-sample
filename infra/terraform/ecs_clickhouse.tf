@@ -224,6 +224,12 @@ resource "aws_ecs_service" "clickhouse" {
     container_port   = 8123
   }
 
+  load_balancer {
+    target_group_arn = aws_lb_target_group.ch_native.arn
+    container_name   = "clickhouse"
+    container_port   = 9000
+  }
+
   placement_constraints {
     type       = "memberOf"
     expression = "attribute:clickhouse_node == ${each.key}"

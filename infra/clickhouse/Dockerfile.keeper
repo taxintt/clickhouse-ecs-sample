@@ -1,9 +1,11 @@
-FROM clickhouse/clickhouse-keeper:24.12-alpine
+FROM clickhouse/clickhouse-keeper:26.3-alpine
+
+RUN apk add --no-cache netcat-openbsd
 
 # Copy Keeper configuration
 COPY config/keeper_config.xml /etc/clickhouse-keeper/keeper_config.xml
 
-HEALTHCHECK --interval=10s --timeout=5s --retries=3 \
+HEALTHCHECK --interval=10s --timeout=5s --retries=3 --start-period=30s \
     CMD echo ruok | nc localhost 9181 | grep -q imok || exit 1
 
 EXPOSE 9181 9234
