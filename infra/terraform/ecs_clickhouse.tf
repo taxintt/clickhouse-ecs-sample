@@ -95,9 +95,14 @@ resource "aws_ecs_task_definition" "clickhouse" {
   execution_role_arn       = aws_iam_role.ecs_task_execution.arn
   task_role_arn            = aws_iam_role.ecs_task.arn
 
+  # Persistent EBS-backed volume for ClickHouse data and metadata.
+  # The host path /mnt/clickhouse-data is mounted from EBS by user_data, with
+  # NVMe instance store nested at /mnt/clickhouse-data/s3cache for S3 cache.
+  # The single bind below makes both visible inside the container at
+  # /var/lib/clickhouse and /var/lib/clickhouse/s3cache respectively.
   volume {
-    name      = "s3cache"
-    host_path = "/var/lib/clickhouse/s3cache"
+    name      = "clickhouse-data"
+    host_path = "/mnt/clickhouse-data"
   }
 
   container_definitions = jsonencode([{
@@ -113,8 +118,8 @@ resource "aws_ecs_task_definition" "clickhouse" {
     ]
 
     mountPoints = [{
-      sourceVolume  = "s3cache"
-      containerPath = "/var/lib/clickhouse/s3cache"
+      sourceVolume  = "clickhouse-data"
+      containerPath = "/var/lib/clickhouse"
       readOnly      = false
     }]
 
